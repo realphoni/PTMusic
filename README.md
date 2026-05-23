@@ -1,2 +1,33 @@
 # PTMusic
 PTMusic is a music app made by Phoni Technology.
+This is a passion project, so it will not be updated regularly.
+
+## Who even are you?
+I'm Phoni, a pan dude. 13 and on YouTube as @Phoni1RBX. I've made PTBrowser before.
+
+## Requirements
+### MUST need
+For betas, you must have Pygame and Mutagen.
+### Minimum
+TBD
+### Recommended
+TBD
+
+## Features
+### Kind of inspired by Aero
+It kinda looks like Aero.
+
+## All supported files
+PTMusic supports MP3, FLAC, WAV, M4A, MIDI and WMA. THe only ones tested have been MP3 and MIDI.
+
+## Why PTMusic?
+idk why not
+
+## What even is PT?
+PT, also known as Phoni Technology is a fictional company made by me. It's internet appearence was in 2019 through Roblox.
+
+## How do I build it?
+No.
+
+## Warnings
+please dont unironically use this, its ass
