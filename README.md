@@ -9,9 +9,9 @@ I'm Phoni, a pan dude. 13 and on YouTube as @Phoni1RBX. I've made PTBrowser befo
 ### MUST need
 For betas, you must have Pygame and Mutagen.
 ### Minimum
-TBD
+Windows 10 (Tested), atleast 40Mb of RAM (not joking)
 ### Recommended
-TBD
+Windows 10 (Tested)/Windows 11, atleast 4gb of RAM
 
 ## Features
 ### Kind of inspired by Aero
