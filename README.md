@@ -1,5 +1,5 @@
 # PTMusic
-<img width="1920" height="1019" alt="tea es" src="https://github.com/user-attachments/assets/6db55cf4-9900-4480-83aa-648a521115f4" />
+<img width="960" height="209" alt="tea es" src="https://github.com/user-attachments/assets/6db55cf4-9900-4480-83aa-648a521115f4" />
 PTMusic is a music app made by Phoni Technology.
 This is a passion project, so it will not be updated regularly.
 
