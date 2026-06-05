@@ -11,6 +11,7 @@ import random
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from pathlib import Path
+from collections import deque
 
 try:
     import pygame
@@ -24,6 +25,12 @@ try:
     MUTAGEN_AVAILABLE = True
 except ImportError:
     MUTAGEN_AVAILABLE = False
+
+try:
+    from PIL import Image, ImageTk
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
 
 
 A = {
@@ -64,7 +71,6 @@ A = {
 
 # ── FONT LOADER ───────────────────────────────────────────────────────────
 def _find_montserrat_ttf():
-    """Return path to Montserrat TTF if it exists next to script/exe, else None."""
     try:
         import sys as _fs, os as _fo
         base = getattr(_fs, "_MEIPASS", _fo.path.dirname(_fo.path.abspath(__file__)))
@@ -76,9 +82,8 @@ def _find_montserrat_ttf():
         pass
     return None
 
-_MONT_TTF = _find_montserrat_ttf()   # TTF path or None
+_MONT_TTF = _find_montserrat_ttf()
 
-# Fonts default to Segoe UI; switched to Montserrat after Tk init (see _init_fonts)
 FONT_UI     = ("Segoe UI", 9)
 FONT_BOLD   = ("Segoe UI", 9,  "bold")
 FONT_SMALL  = ("Segoe UI", 8)
@@ -89,35 +94,25 @@ FONT_NOW    = ("Segoe UI", 13)
 FONT_NOW_SM = ("Segoe UI", 8)
 
 def _init_fonts():
-    """Call AFTER tk.Tk() is created. Loads Montserrat and updates all FONT_* globals."""
     global FONT_UI, FONT_BOLD, FONT_SMALL, FONT_LABEL, FONT_TITLE, FONT_NOW, FONT_NOW_SM
     if not _MONT_TTF:
-        return  # no TTF found, keep Segoe UI
+        return
     try:
         import tkinter.font as tkfont
-        # Register the TTF with Tk via the font file
-        # Tk 8.6+ supports loading font files directly
         fam = None
         try:
-            # Try Tk's built-in font loading (works on Tk 8.6+)
             tmp = tkfont.Font(file=_MONT_TTF)
             fam = tmp.actual()["family"]
             tmp.delete()
         except Exception:
             pass
-
         if not fam:
-            # Fallback: use ctypes to register with GDI then let Tk pick it up
             try:
                 import ctypes
                 ctypes.windll.gdi32.AddFontResourceExW(_MONT_TTF, 0x10, 0)
-                # Tell Tk to refresh its font list
-                import subprocess
-                subprocess.Popen(["FSSYNC"], shell=True, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
             fam = "Montserrat SemiBold"
-
         FONT_UI     = (fam, 9)
         FONT_BOLD   = (fam, 9,  "bold")
         FONT_SMALL  = (fam, 8)
@@ -126,8 +121,7 @@ def _init_fonts():
         FONT_NOW    = (fam, 13)
         FONT_NOW_SM = (fam, 8)
     except Exception:
-        pass  # silently keep Segoe UI on any error
-
+        pass
 
 # ── THEMES ────────────────────────────────────────────────────────────────
 THEMES = {
@@ -159,8 +153,6 @@ THEMES = {
         "danger":"#c0304a","danger_hover":"#e03050","green":"#00e080",
         "sidebar":"#0e2238","sidebar_sect":"#0a1a2c","row_alt":"#0f2235",
     },
-
-
     "Mint": {
         "win_bg":"#e8f5e9","glass_dark":"#c8e6c9","glass":"#f1f8f1",
         "glass_mid":"#dcedc8","glass_light":"#f9fbe7","glass_lighter":"#ffffff",
@@ -175,7 +167,6 @@ THEMES = {
         "danger":"#c62828","danger_hover":"#e53935","green":"#00695c",
         "sidebar":"#dcedc8","sidebar_sect":"#c8e6c9","row_alt":"#f1f8e9",
     },
-    # ── SECRET: unlocked by typing "MORE THEMES PLS" ──────────────────────
     "Royale Noir": {
         "win_bg":"#0e0414","glass_dark":"#160b24","glass":"#1e1030",
         "glass_mid":"#2a1545","glass_light":"#38206a","glass_lighter":"#4a2d80",
@@ -191,8 +182,6 @@ THEMES = {
         "sidebar":"#160b24","sidebar_sect":"#0e0414","row_alt":"#1a0d2e",
     },
 }
-
-# Names shown in the settings dropdown (Royale Noir is hidden until unlocked)
 PUBLIC_THEMES = ["Aero Light", "Aero Dark", "Mint"]
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────
@@ -201,6 +190,8 @@ _cfg_base = getattr(_cfg_sys, "_MEIPASS",
                     _cfg_os.path.dirname(_cfg_os.path.abspath(__file__)))
 CONFIG_PATH = _cfg_os.path.join(
     _cfg_os.path.expanduser("~"), ".ptmusic_config.json")
+RECENT_PATH = _cfg_os.path.join(
+    _cfg_os.path.expanduser("~"), ".ptmusic_recent.json")
 
 DEFAULTS = {
     "theme":            "Aero Light",
@@ -216,7 +207,6 @@ def load_config():
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
-        # Fill in any missing keys with defaults
         for k, v in DEFAULTS.items():
             data.setdefault(k, v)
         return data
@@ -227,6 +217,20 @@ def save_config(cfg: dict):
     try:
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2)
+    except Exception:
+        pass
+
+def load_recent() -> list:
+    try:
+        with open(RECENT_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def save_recent(items: list):
+    try:
+        with open(RECENT_PATH, "w", encoding="utf-8") as f:
+            json.dump(items[-50:], f, indent=2)
     except Exception:
         pass
 
@@ -253,7 +257,6 @@ def get_all_drives():
                 for s in p.iterdir():
                     if s.is_dir(): drives.append(str(s))
         return drives
-
 
 def scan_paths(paths, callback=None, stop_event=None):
     SKIP = {'$Recycle.Bin','System Volume Information','Windows',
@@ -284,7 +287,6 @@ def scan_paths(paths, callback=None, stop_event=None):
                     if callback:
                         callback(info)
 
-
 def _meta(info):
     try:
         audio = MutagenFile(info["path"], easy=True)
@@ -300,6 +302,34 @@ def _meta(info):
             info["dur_sec"] = s
     except: pass
 
+def _get_cover_art(path: str, size: int = 80):
+    """Extract embedded cover art from audio file. Returns ImageTk.PhotoImage or None."""
+    if not PIL_AVAILABLE or not MUTAGEN_AVAILABLE:
+        return None
+    try:
+        audio = MutagenFile(path)
+        if not audio: return None
+        img_data = None
+        # MP3 / ID3
+        if hasattr(audio, 'tags') and audio.tags:
+            for tag in audio.tags.values():
+                if hasattr(tag, 'data') and hasattr(tag, 'mime'):
+                    img_data = tag.data; break
+                if hasattr(tag, 'value') and isinstance(getattr(tag,'value',None), bytes):
+                    img_data = tag.value; break
+        # FLAC
+        if not img_data and hasattr(audio, 'pictures') and audio.pictures:
+            img_data = audio.pictures[0].data
+        # M4A
+        if not img_data and hasattr(audio, 'tags') and audio.tags:
+            covr = audio.tags.get('covr')
+            if covr: img_data = bytes(covr[0])
+        if not img_data: return None
+        import io
+        img = Image.open(io.BytesIO(img_data)).resize((size, size), Image.LANCZOS)
+        return ImageTk.PhotoImage(img)
+    except Exception:
+        return None
 
 def fmt_size(b):
     if b < 1024:    return f"{b} B"
@@ -307,26 +337,22 @@ def fmt_size(b):
     return f"{b/1048576:.1f} MB"
 
 
+# ══════════════════════════════════════════════════════════════════════════
+#  widgets
+# ══════════════════════════════════════════════════════════════════════════
+
 class AeroBtn(tk.Label):
-    """Aero-style button using tk.Label — no Canvas, no Tcl race conditions."""
     def __init__(self, parent, text="", icon="", cmd=None,
                  w=88, h=26, danger=False, bg_override=None, **kw):
-        # strip kwargs that don't apply to Label
         kw.pop('square', None)
         self._bg = bg_override or A["win_bg"]
-        self.cmd    = cmd
-        self.text   = text
-        self.icon   = icon
-        self.danger = danger
-        self._w = w; self._h = h
+        self.cmd = cmd; self.text = text; self.icon = icon
+        self.danger = danger; self._w = w; self._h = h
         self._hov = False; self._press = False
-
         lbl = (icon + (" " if icon and text else "") + text)
         super().__init__(parent, text=lbl, font=FONT_UI,
-                         bg=A["btn"], fg=A["text"],
-                         relief="flat", bd=0,
-                         padx=8, pady=3,
-                         cursor="hand2", **kw)
+                         bg=A["btn"], fg=A["text"], relief="flat", bd=0,
+                         padx=8, pady=3, cursor="hand2", **kw)
         self._refresh()
         self.bind("<Enter>",           lambda e: self._set(hov=True))
         self.bind("<Leave>",           lambda e: self._set(hov=False, press=False))
@@ -343,23 +369,16 @@ class AeroBtn(tk.Label):
         if self.cmd: self.cmd()
 
     def _refresh(self):
-        if self._press:
-            bg = A["btn_press"]; fg = A["text_dim"]
-        elif self._hov:
-            bg = A["btn_hover"]; fg = A["accent_bright"]
-        else:
-            bg = A["btn"];       fg = A["text"]
-        if self.danger:
-            fg = A["danger_hover"] if self._hov else A["danger"]
+        if self._press:   bg = A["btn_press"]; fg = A["text_dim"]
+        elif self._hov:   bg = A["btn_hover"]; fg = A["accent_bright"]
+        else:             bg = A["btn"];       fg = A["text"]
+        if self.danger:   fg = A["danger_hover"] if self._hov else A["danger"]
         self.config(bg=bg, fg=fg,
-                    highlightbackground=A["btn_border"],
-                    highlightthickness=1)
+                    highlightbackground=A["btn_border"], highlightthickness=1)
 
     def _draw(self):
-        """Called by playback code to update icon/text after init."""
         lbl = (self.icon + (" " if self.icon and self.text else "") + self.text)
-        self.config(text=lbl)
-        self._refresh()
+        self.config(text=lbl); self._refresh()
 
 
 class GlassPanel(tk.Frame):
@@ -379,34 +398,23 @@ class FolderList(tk.Frame):
         self._build()
 
     def _build(self):
-        # Listbox with scrollbar
         box_frame = tk.Frame(self, bg=A["glass_dark"],
-                             highlightthickness=1,
-                             highlightbackground=A["border"])
-        box_frame.pack(fill="both", expand=True, padx=0, pady=0)
-
-        self.lb = tk.Listbox(box_frame,
-                             bg=A["glass_dark"], fg=A["text"],
-                             selectbackground=A["sel"],
-                             selectforeground=A["accent_bright"],
-                             activestyle="none",
-                             font=FONT_SMALL, relief="flat",
-                             highlightthickness=0, bd=0,
-                             height=6)
+                             highlightthickness=1, highlightbackground=A["border"])
+        box_frame.pack(fill="both", expand=True)
+        self.lb = tk.Listbox(box_frame, bg=A["glass_dark"], fg=A["text"],
+                             selectbackground=A["sel"], selectforeground=A["accent_bright"],
+                             activestyle="none", font=FONT_SMALL, relief="flat",
+                             highlightthickness=0, bd=0, height=6)
         vsb = ttk.Scrollbar(box_frame, orient="vertical", command=self.lb.yview)
         self.lb.configure(yscrollcommand=vsb.set)
         self.lb.pack(side="left", fill="both", expand=True)
         vsb.pack(side="right", fill="y")
-
-        # Buttons
         btns = tk.Frame(self, bg=A["sidebar"])
         btns.pack(fill="x", pady=(3,0))
-        AeroBtn(btns, icon="＋", text="Add Folder",
-                cmd=self._add, w=120, h=24,
-                bg_override=A["sidebar"]).pack(side="left", padx=(0,3))
-        AeroBtn(btns, icon="−", text="Remove",
-                cmd=self._remove, w=88, h=24, danger=True,
-                bg_override=A["sidebar"]).pack(side="left")
+        AeroBtn(btns, icon="＋", text="Add Folder", cmd=self._add,
+                w=120, h=24, bg_override=A["sidebar"]).pack(side="left", padx=(0,3))
+        AeroBtn(btns, icon="−", text="Remove", cmd=self._remove,
+                w=88, h=24, danger=True, bg_override=A["sidebar"]).pack(side="left")
 
     def _add(self):
         path = filedialog.askdirectory(title="Select Folder to Scan")
@@ -419,8 +427,7 @@ class FolderList(tk.Frame):
         sel = self.lb.curselection()
         if not sel: return
         idx = sel[0]
-        self.folders.pop(idx)
-        self.lb.delete(idx)
+        self.folders.pop(idx); self.lb.delete(idx)
         if self.on_change: self.on_change()
 
     def get_folders(self): return list(self.folders)
@@ -430,67 +437,45 @@ class FolderList(tk.Frame):
         self.lb.insert("end", "  (all drives)")
 
 
-
 class SettingsWindow:
-    """Modal settings dialog with tabs for Appearance, Playback, Library."""
     def __init__(self, app):
         self.app = app
-        self.cfg = dict(app.cfg)  # working copy
-
+        self.cfg = dict(app.cfg)
         win = tk.Toplevel(app.root)
         win.title("PTMusic Settings")
         win.geometry("520x440")
         win.resizable(False, False)
         win.configure(bg=A["glass"])
-        win.grab_set()
-        win.transient(app.root)
+        win.grab_set(); win.transient(app.root)
         self.win = win
-
-        # Centre over parent
         app.root.update_idletasks()
         px = app.root.winfo_x() + app.root.winfo_width()//2 - 260
         py = app.root.winfo_y() + app.root.winfo_height()//2 - 220
         win.geometry(f"+{px}+{py}")
-
         self._build()
 
     def _build(self):
         win = self.win
-
-        # Title bar strip
         hdr = tk.Frame(win, bg=A["title_bar"], height=36)
-        hdr.pack(fill="x")
-        hdr.pack_propagate(False)
+        hdr.pack(fill="x"); hdr.pack_propagate(False)
         tk.Label(hdr, text="⚙  Settings", bg=A["title_bar"],
                  fg=A["accent_bright"], font=FONT_TITLE).pack(side="left", padx=12, pady=6)
         tk.Frame(win, bg=A["tb_border"], height=1).pack(fill="x")
-
-        # Tab bar
         tab_bar = tk.Frame(win, bg=A["glass_dark"])
         tab_bar.pack(fill="x")
         tk.Frame(win, bg=A["border"], height=1).pack(fill="x")
-
-        # Content area
         self.content = tk.Frame(win, bg=A["glass"])
         self.content.pack(fill="both", expand=True, padx=12, pady=8)
-
-        # Bottom buttons
         tk.Frame(win, bg=A["border"], height=1).pack(fill="x")
         btn_bar = tk.Frame(win, bg=A["glass_dark"])
         btn_bar.pack(fill="x", padx=10, pady=6)
-        AeroBtn(btn_bar, text="Apply & Close", icon="✔",
-                cmd=self._apply, w=130, h=26,
-                bg_override=A["glass_dark"]).pack(side="right", padx=(4,0))
-        AeroBtn(btn_bar, text="Cancel", icon="✖",
-                cmd=self.win.destroy, w=80, h=26, danger=True,
-                bg_override=A["glass_dark"]).pack(side="right")
-        AeroBtn(btn_bar, text="Reset Defaults", icon="↺",
-                cmd=self._reset, w=120, h=26,
-                bg_override=A["glass_dark"]).pack(side="left")
-
-        # Build tabs
-        self.tab_btns = {}
-        self.tabs = {}
+        AeroBtn(btn_bar, text="Apply & Close", icon="✔", cmd=self._apply,
+                w=130, h=26, bg_override=A["glass_dark"]).pack(side="right", padx=(4,0))
+        AeroBtn(btn_bar, text="Cancel", icon="✖", cmd=self.win.destroy,
+                w=80, h=26, danger=True, bg_override=A["glass_dark"]).pack(side="right")
+        AeroBtn(btn_bar, text="Reset Defaults", icon="↺", cmd=self._reset,
+                w=120, h=26, bg_override=A["glass_dark"]).pack(side="left")
+        self.tab_btns = {}; self.tabs = {}
         for name in ("Appearance", "Playback", "Library", "About"):
             btn = tk.Label(tab_bar, text=name, font=FONT_UI,
                            bg=A["glass_dark"], fg=A["text_dim"],
@@ -498,164 +483,111 @@ class SettingsWindow:
             btn.pack(side="left")
             btn.bind("<Button-1>", lambda e, n=name: self._show_tab(n))
             self.tab_btns[name] = btn
-
-            frame = tk.Frame(self.content, bg=A["glass"])
-            self.tabs[name] = frame
-
-        self._build_appearance()
-        self._build_playback()
-        self._build_library_tab()
-        self._build_about()
+            self.tabs[name] = tk.Frame(self.content, bg=A["glass"])
+        self._build_appearance(); self._build_playback()
+        self._build_library_tab(); self._build_about()
         self._show_tab("Appearance")
 
     def _show_tab(self, name):
-        for n, f in self.tabs.items():
-            f.pack_forget()
+        for f in self.tabs.values(): f.pack_forget()
         for n, b in self.tab_btns.items():
             b.config(bg=A["glass_dark"], fg=A["text_dim"])
         self.tabs[name].pack(fill="both", expand=True)
         self.tab_btns[name].config(bg=A["glass_mid"], fg=A["accent_bright"])
 
-    # ── APPEARANCE TAB ──────────────────────────────────────────
     def _build_appearance(self):
         f = self.tabs["Appearance"]
-
         def row(label):
-            r = tk.Frame(f, bg=A["glass"])
-            r.pack(fill="x", pady=5)
+            r = tk.Frame(f, bg=A["glass"]); r.pack(fill="x", pady=5)
             tk.Label(r, text=label, bg=A["glass"], fg=A["text"],
                      font=FONT_UI, width=18, anchor="w").pack(side="left")
             return r
-
-        # Theme picker
         r = row("Theme:")
         self.theme_var = tk.StringVar(value=self.cfg["theme"])
-        # Show public themes + Royale Noir only if already unlocked
         visible = list(PUBLIC_THEMES)
         if self.cfg.get("theme") == "Royale Noir" or self.cfg.get("royale_noir_unlocked"):
             visible.append("Royale Noir")
-        theme_names = visible
-        om = ttk.OptionMenu(r, self.theme_var, self.cfg["theme"], *theme_names,
+        om = ttk.OptionMenu(r, self.theme_var, self.cfg["theme"], *visible,
                             command=self._preview_theme)
-        om.config(width=20)
-        om.pack(side="left", padx=4)
-
-        # Theme preview swatch row
+        om.config(width=20); om.pack(side="left", padx=4)
         self.swatch_frame = tk.Frame(f, bg=A["glass"])
         self.swatch_frame.pack(fill="x", pady=(0,8))
         self._draw_swatches(self.cfg["theme"])
-
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-
-        # Font size
         r = row("Font size:")
         self.font_var = tk.IntVar(value=self.cfg["font_size"])
         for size in (8, 9, 10, 11, 12):
             tk.Radiobutton(r, text=str(size), variable=self.font_var, value=size,
-                           bg=A["glass"], fg=A["text"],
-                           activebackground=A["glass"],
-                           selectcolor=A["glass_dark"],
-                           font=FONT_SMALL).pack(side="left", padx=3)
-
+                           bg=A["glass"], fg=A["text"], activebackground=A["glass"],
+                           selectcolor=A["glass_dark"], font=FONT_SMALL
+                           ).pack(side="left", padx=3)
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-
-        # Show/hide columns
         r = row("Show path column:")
         self.path_col_var = tk.BooleanVar(value=self.cfg["show_path_col"])
-        tk.Checkbutton(r, variable=self.path_col_var,
-                       bg=A["glass"], activebackground=A["glass"],
-                       selectcolor=A["glass_dark"]).pack(side="left")
+        tk.Checkbutton(r, variable=self.path_col_var, bg=A["glass"],
+                       activebackground=A["glass"], selectcolor=A["glass_dark"]).pack(side="left")
 
-    def _draw_swatches(self, theme_name):
-        for w in self.swatch_frame.winfo_children():
-            w.destroy()
-        palette = THEMES.get(theme_name, {})
-        swatch_keys = ["win_bg","glass","accent","accent_bright",
-                       "btn","text","prog_fill","danger","green","sidebar"]
+    def _draw_swatches(self, name):
+        for w in self.swatch_frame.winfo_children(): w.destroy()
+        palette = THEMES.get(name, {})
         tk.Label(self.swatch_frame, text="Preview:", bg=A["glass"],
                  fg=A["text_dim"], font=FONT_SMALL).pack(side="left", padx=(0,6))
-        for key in swatch_keys:
+        for key in ["win_bg","glass","accent","accent_bright","btn","text",
+                    "prog_fill","danger","green","sidebar"]:
             col = palette.get(key, "#888888")
             tk.Label(self.swatch_frame, bg=col, width=3,
                      relief="solid", bd=1).pack(side="left", padx=1, pady=4)
 
-    def _preview_theme(self, name):
-        self._draw_swatches(name)
+    def _preview_theme(self, name): self._draw_swatches(name)
 
-    # ── PLAYBACK TAB ────────────────────────────────────────────
     def _build_playback(self):
         f = self.tabs["Playback"]
-
         def row(label):
-            r = tk.Frame(f, bg=A["glass"])
-            r.pack(fill="x", pady=6)
+            r = tk.Frame(f, bg=A["glass"]); r.pack(fill="x", pady=6)
             tk.Label(r, text=label, bg=A["glass"], fg=A["text"],
                      font=FONT_UI, width=22, anchor="w").pack(side="left")
             return r
-
         r = row("Progress update (ms):")
         self.tick_var = tk.IntVar(value=self.cfg["tick_interval_ms"])
-        tk.Scale(r, variable=self.tick_var, from_=100, to=1000,
-                 orient="horizontal", length=200, resolution=50,
-                 bg=A["glass"], fg=A["text"],
-                 troughcolor=A["prog_bg"],
-                 highlightthickness=0,
-                 activebackground=A["accent_hot"]
-                 ).pack(side="left", padx=4)
-        lbl = tk.Label(r, textvariable=self.tick_var, bg=A["glass"],
-                       fg=A["text_dim"], font=FONT_MONO, width=5)
-        lbl.pack(side="left")
-
+        tk.Scale(r, variable=self.tick_var, from_=100, to=1000, orient="horizontal",
+                 length=200, resolution=50, bg=A["glass"], fg=A["text"],
+                 troughcolor=A["prog_bg"], highlightthickness=0,
+                 activebackground=A["accent_hot"]).pack(side="left", padx=4)
+        tk.Label(r, textvariable=self.tick_var, bg=A["glass"],
+                 fg=A["text_dim"], font=FONT_MONO, width=5).pack(side="left")
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-
         r = row("Crossfade (ms):")
         self.xfade_var = tk.IntVar(value=self.cfg["crossfade_ms"])
-        tk.Scale(r, variable=self.xfade_var, from_=0, to=5000,
-                 orient="horizontal", length=200, resolution=100,
-                 bg=A["glass"], fg=A["text"],
-                 troughcolor=A["prog_bg"],
-                 highlightthickness=0,
-                 activebackground=A["accent_hot"]
-                 ).pack(side="left", padx=4)
+        tk.Scale(r, variable=self.xfade_var, from_=0, to=5000, orient="horizontal",
+                 length=200, resolution=100, bg=A["glass"], fg=A["text"],
+                 troughcolor=A["prog_bg"], highlightthickness=0,
+                 activebackground=A["accent_hot"]).pack(side="left", padx=4)
         tk.Label(r, textvariable=self.xfade_var, bg=A["glass"],
                  fg=A["text_dim"], font=FONT_MONO, width=5).pack(side="left")
         tk.Label(r, text="(0 = off)", bg=A["glass"],
                  fg=A["text_dim"], font=FONT_SMALL).pack(side="left", padx=4)
-
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-
         r = row("Scan on startup:")
         self.startup_var = tk.BooleanVar(value=self.cfg["scan_on_startup"])
-        tk.Checkbutton(r, variable=self.startup_var,
-                       bg=A["glass"], activebackground=A["glass"],
-                       selectcolor=A["glass_dark"]).pack(side="left")
+        tk.Checkbutton(r, variable=self.startup_var, bg=A["glass"],
+                       activebackground=A["glass"], selectcolor=A["glass_dark"]).pack(side="left")
 
-    # ── LIBRARY TAB ─────────────────────────────────────────────
     def _build_library_tab(self):
         f = self.tabs["Library"]
-
         def row(label):
-            r = tk.Frame(f, bg=A["glass"])
-            r.pack(fill="x", pady=6)
+            r = tk.Frame(f, bg=A["glass"]); r.pack(fill="x", pady=6)
             tk.Label(r, text=label, bg=A["glass"], fg=A["text"],
                      font=FONT_UI, width=22, anchor="w").pack(side="left")
             return r
-
         r = row("Confirm before clearing:")
         self.confirm_var = tk.BooleanVar(value=self.cfg["confirm_clear"])
-        tk.Checkbutton(r, variable=self.confirm_var,
-                       bg=A["glass"], activebackground=A["glass"],
-                       selectcolor=A["glass_dark"]).pack(side="left")
-
+        tk.Checkbutton(r, variable=self.confirm_var, bg=A["glass"],
+                       activebackground=A["glass"], selectcolor=A["glass_dark"]).pack(side="left")
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-
         r = row("Config file location:")
         tk.Label(r, text=CONFIG_PATH, bg=A["glass"], fg=A["text_dim"],
-                 font=FONT_SMALL, wraplength=320, justify="left"
-                 ).pack(side="left", padx=4)
-
+                 font=FONT_SMALL, wraplength=320, justify="left").pack(side="left", padx=4)
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-
         AeroBtn(f, text="Open config folder", icon="📁",
                 cmd=self._open_cfg_folder, w=160, h=26,
                 bg_override=A["glass"]).pack(anchor="w", pady=4)
@@ -663,14 +595,10 @@ class SettingsWindow:
     def _open_cfg_folder(self):
         import subprocess, sys
         folder = os.path.dirname(CONFIG_PATH)
-        if sys.platform == "win32":
-            subprocess.Popen(["explorer", folder])
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", folder])
-        else:
-            subprocess.Popen(["xdg-open", folder])
+        if sys.platform == "win32": subprocess.Popen(["explorer", folder])
+        elif sys.platform == "darwin": subprocess.Popen(["open", folder])
+        else: subprocess.Popen(["xdg-open", folder])
 
-    # ── ABOUT TAB ───────────────────────────────────────────────
     def _build_about(self):
         f = self.tabs["About"]
         tk.Label(f, text="PTMusic", bg=A["glass"],
@@ -680,13 +608,11 @@ class SettingsWindow:
         tk.Label(f, text="Phoni Technology  ·  2026", bg=A["glass"],
                  fg=A["text_dim"], font=FONT_SMALL).pack(pady=(2,16))
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x")
-        tk.Label(f,
-                 text="Supports MP3 · FLAC · WAV · M4A · MIDI · WMA\n"
-                      "Built with Python, Tkinter, pygame, mutagen, Pillow",
+        tk.Label(f, text="Supports MP3 · FLAC · WAV · M4A · MIDI · WMA\n"
+                          "Built with Python, Tkinter, pygame, mutagen, Pillow",
                  bg=A["glass"], fg=A["text_dim"],
                  font=FONT_SMALL, justify="center").pack(pady=12)
 
-    # ── APPLY ────────────────────────────────────────────────────
     def _apply(self):
         self.cfg["theme"]            = self.theme_var.get()
         self.cfg["font_size"]        = self.font_var.get()
@@ -695,31 +621,20 @@ class SettingsWindow:
         self.cfg["crossfade_ms"]     = self.xfade_var.get()
         self.cfg["scan_on_startup"]  = self.startup_var.get()
         self.cfg["confirm_clear"]    = self.confirm_var.get()
-
         save_config(self.cfg)
         self.app.cfg = self.cfg
-
-        # Apply theme palette to global A dict
         PhoniPlayer._apply_theme(self.cfg["theme"])
-
-        # Rebuild UI (also repopulates tree)
         self.app._rebuild_ui()
-
-        # Post-rebuild: show/hide path column on the NEW tree widget
         try:
             if self.cfg["show_path_col"]:
                 self.app.tree.column("path", width=260, minwidth=36)
             else:
                 self.app.tree.column("path", width=0, minwidth=0, stretch=False)
-        except Exception:
-            pass
-
-        # Destroy settings window AFTER rebuild so parent ref stays valid
+        except Exception: pass
         self.win.destroy()
 
     def _reset(self):
-        if messagebox.askyesno("Reset", "Reset all settings to defaults?",
-                               parent=self.win):
+        if messagebox.askyesno("Reset", "Reset all settings to defaults?", parent=self.win):
             self.cfg = dict(DEFAULTS)
             save_config(self.cfg)
             self.app.cfg = self.cfg
@@ -728,345 +643,495 @@ class SettingsWindow:
             self.win.destroy()
 
 
+# ══════════════════════════════════════════════════════════════════════════
+#  egssssss
+# ══════════════════════════════════════════════════════════════════════════
 
 class EasterEggWindow:
-    """Secret easter egg — triggered by clicking the logo 7 times."""
     def __init__(self, root):
         win = tk.Toplevel(root)
-        win.title("???")
-        win.geometry("400x320")
-        win.resizable(False, False)
-        win.configure(bg="#0a0a0a")
-        win.grab_set()
-        win.transient(root)
-
+        win.title("Sneak Peaks"); win.geometry("400x320")
+        win.resizable(False, False); win.configure(bg="#0a0a0a")
+        win.grab_set(); win.transient(root)
         root.update_idletasks()
-        px = root.winfo_x() + root.winfo_width()//2 - 200
-        py = root.winfo_y() + root.winfo_height()//2 - 160
-        win.geometry(f"+{px}+{py}")
-
-        self.win = win
-        self.root = root
-        self._frame = 0
+        win.geometry(f"+{root.winfo_x()+root.winfo_width()//2-200}"
+                     f"+{root.winfo_y()+root.winfo_height()//2-160}")
+        self.win = win; self._frame = 0
         self._colors = ["#ff0000","#ff7700","#ffff00","#00ff00",
                         "#0000ff","#8b00ff","#ff00ff"]
-        self._build()
-        self._animate()
+        self._build(); self._animate()
 
     def _build(self):
-        win = self.win
-
-        self.title_lbl = tk.Label(win, text="🎵 PHONI TECHNOLOGY 🎵",
+        self.title_lbl = tk.Label(self.win, text="🎵 PHONI TECHNOLOGY 🎵",
                                    bg="#0a0a0a", fg="#ff0000",
                                    font=("Segoe UI", 13, "bold"))
-        self.title_lbl.pack(pady=(24, 4))
-
-        self.sub_lbl = tk.Label(win,
-            text="wassup homie!\n\nwelcome to sneak peak area. here, if theres a minor update like 26.6.1,\n\nu might see a sneak peak here!\ncome back later, no sneak yet.",
-            bg="#0a0a0a", fg="#cccccc",
-            font=("Segoe UI", 9), justify="center")
-        self.sub_lbl.pack(pady=8)
-
-        self.note_lbl = tk.Label(win, text="♪  ♫  ♩  ♬  ♭",
-                                  bg="#0a0a0a", fg="#ffffff",
-                                  font=("Segoe UI", 18))
+        self.title_lbl.pack(pady=(24,4))
+        tk.Label(self.win,
+                 text="hello there!\n\nwelcome here. its cool isnt it?\n"
+                      "dont you just miss more themes?",
+                 bg="#0a0a0a", fg="#cccccc",
+                 font=("Segoe UI", 9), justify="center").pack(pady=8)
+        self.note_lbl = tk.Label(self.win, text="♪  ♫  ♩  ♬  ♭",
+                                  bg="#0a0a0a", fg="#ffffff", font=("Segoe UI", 18))
         self.note_lbl.pack(pady=8)
-
-        tk.Button(win, text="come back later blud",
-                  command=win.destroy,
-                  bg="#1a1a1a", fg="#aaaaaa",
+        tk.Button(self.win, text="leaved",
+                  command=self.win.destroy, bg="#1a1a1a", fg="#aaaaaa",
                   relief="flat", font=("Segoe UI", 9),
-                  activebackground="#333333",
-                  activeforeground="#ffffff",
+                  activebackground="#333333", activeforeground="#ffffff",
                   padx=12, pady=4).pack(pady=16)
 
     def _animate(self):
         try:
             col = self._colors[self._frame % len(self._colors)]
             self.title_lbl.config(fg=col)
-            notes = ["♪  ♫  ♩  ♬  ♭", "♫  ♩  ♬  ♭  ♪",
-                     "♩  ♬  ♭  ♪  ♫", "♬  ♭  ♪  ♫  ♩", "♭  ♪  ♫  ♩  ♬"]
+            notes = ["♪  ♫  ♩  ♬  ♭","♫  ♩  ♬  ♭  ♪","♩  ♬  ♭  ♪  ♫",
+                     "♬  ♭  ♪  ♫  ♩","♭  ♪  ♫  ♩  ♬"]
             self.note_lbl.config(text=notes[self._frame % len(notes)])
             self._frame += 1
             self.win.after(150, self._animate)
+        except Exception: pass
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  small play
+# ══════════════════════════════════════════════════════════════════════════
+
+class MiniPlayer:
+    def __init__(self, app):
+        self.app = app
+        win = tk.Toplevel(app.root)
+        win.title("PTMusic Mini")
+        win.geometry("420x90")
+        win.resizable(False, False)
+        win.configure(bg=A["glass_dark"])
+        win.attributes("-topmost", True)
+        win.overrideredirect(True)   # borderless
+        win.transient(app.root)
+        self.win = win
+        self._drag_x = 0; self._drag_y = 0
+        self._art_img = None
+        self._build()
+        self._update()
+    
+        win.bind("<ButtonPress-1>",   self._drag_start)
+        win.bind("<B1-Motion>",        self._drag_move)
+
+    def _drag_start(self, e):
+        self._drag_x = e.x_root - self.win.winfo_x()
+        self._drag_y = e.y_root - self.win.winfo_y()
+
+    def _drag_move(self, e):
+        self.win.geometry(f"+{e.x_root - self._drag_x}+{e.y_root - self._drag_y}")
+
+    def _build(self):
+        win = self.win
+        
+        tk.Frame(win, bg=A["accent"], height=3).pack(fill="x")
+
+        body = tk.Frame(win, bg=A["glass_dark"])
+        body.pack(fill="both", expand=True, padx=4, pady=4)
+
+        # Cover art thumbnail
+        self.art_lbl = tk.Label(body, bg=A["glass_mid"], width=5,
+                                 relief="flat", bd=0)
+        self.art_lbl.pack(side="left", padx=(0,6))
+
+        # Track info
+        info = tk.Frame(body, bg=A["glass_dark"])
+        info.pack(side="left", fill="both", expand=True)
+        self.mini_title = tk.Label(info, text="Nothing playing",
+                                    bg=A["glass_dark"], fg=A["accent_bright"],
+                                    font=FONT_BOLD, anchor="w")
+        self.mini_title.pack(fill="x")
+        self.mini_sub = tk.Label(info, text="",
+                                  bg=A["glass_dark"], fg=A["text_dim"],
+                                  font=FONT_SMALL, anchor="w")
+        self.mini_sub.pack(fill="x")
+
+    
+        self.mini_prog = tk.Canvas(info, height=4, bg=A["prog_bg"],
+                                    highlightthickness=0)
+        self.mini_prog.pack(fill="x", pady=(3,0))
+
+
+        ctrl = tk.Frame(body, bg=A["glass_dark"])
+        ctrl.pack(side="right", padx=(6,0))
+        for icon, cmd in [("⏮", self.app._prev),
+                           ("⏸" if self.app.playing else "▶", self.app._playpause),
+                           ("⏭", self.app._next),
+                           ("✖", self._close)]:
+            AeroBtn(ctrl, icon=icon, cmd=cmd, w=28, h=28,
+                    bg_override=A["glass_dark"],
+                    danger=(icon=="✖")).pack(side="left", padx=1)
+
+    def _close(self):
+        self.app.mini_player = None
+        self.win.destroy()
+
+    def _update(self):
+        try:
+            app = self.app
+
+            title = app.now_title.cget("text") if hasattr(app, 'now_title') else "Nothing playing"
+            sub   = app.now_sub.cget("text")   if hasattr(app, 'now_sub')   else ""
+            self.mini_title.config(text=title[:45] + ("…" if len(title)>45 else ""))
+            self.mini_sub.config(text=sub[:55] + ("…" if len(sub)>55 else ""))
+
+
+            W = self.mini_prog.winfo_width()
+            self.mini_prog.delete("all")
+            if app._tlen > 0 and W > 0 and PYGAME_AVAILABLE and app.playing:
+                raw = pygame.mixer.music.get_pos() / 1000.0
+                if raw >= 0:
+                    pos = app._seek_offset + raw
+                    fw = int(min(pos / app._tlen, 1.0) * W)
+                    self.mini_prog.create_rectangle(0,0,W,4, fill=A["prog_bg"], outline="")
+                    if fw > 0:
+                        self.mini_prog.create_rectangle(0,0,fw,4, fill=A["prog_fill"], outline="")
+
+
+            if app.playing and app.cur_idx >= 0 and 0 <= app.cur_idx < len(app.filtered):
+                path = app.filtered[app.cur_idx]["path"]
+                img = _get_cover_art(path, size=60)
+                if img:
+                    self._art_img = img
+                    self.art_lbl.config(image=img, width=60, height=60)
+                else:
+                    self.art_lbl.config(image="", text="🎵", font=("Segoe UI",18),
+                                         width=3, height=2)
+            self.win.after(500, self._update)
         except Exception:
             pass
 
 
+# ══════════════════════════════════════════════════════════════════════════
+#  que window
+# ══════════════════════════════════════════════════════════════════════════
+
+class QueueWindow:
+    def __init__(self, app):
+        self.app = app
+        win = tk.Toplevel(app.root)
+        win.title("Play Queue")
+        win.geometry("420x500")
+        win.configure(bg=A["glass"])
+        win.transient(app.root)
+        self.win = win
+        app.root.update_idletasks()
+        win.geometry(f"+{app.root.winfo_x()+app.root.winfo_width()-440}"
+                     f"+{app.root.winfo_y()+60}")
+        self._build()
+        self._refresh()
+
+    def _build(self):
+        hdr = tk.Frame(self.win, bg=A["title_bar"], height=36)
+        hdr.pack(fill="x"); hdr.pack_propagate(False)
+        tk.Label(hdr, text="▶  Play Queue", bg=A["title_bar"],
+                 fg=A["accent_bright"], font=FONT_TITLE).pack(side="left", padx=12, pady=6)
+        tk.Frame(self.win, bg=A["tb_border"], height=1).pack(fill="x")
+
+
+        lf = GlassPanel(self.win)
+        lf.pack(fill="both", expand=True, padx=6, pady=6)
+        self.lb = tk.Listbox(lf, bg=A["glass"], fg=A["text"],
+                              selectbackground=A["sel"], selectforeground=A["accent_bright"],
+                              activestyle="none", font=FONT_SMALL,
+                              relief="flat", highlightthickness=0, bd=0)
+        vsb = ttk.Scrollbar(lf, orient="vertical", command=self.lb.yview)
+        self.lb.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        self.lb.pack(fill="both", expand=True, padx=4, pady=4)
+        self.lb.bind("<Double-1>", self._play_selected)
+
+
+        btn_row = tk.Frame(self.win, bg=A["glass_dark"])
+        btn_row.pack(fill="x", padx=6, pady=(0,6))
+        AeroBtn(btn_row, icon="▶", text="Play Next", w=100, h=26,
+                cmd=self._play_next, bg_override=A["glass_dark"]).pack(side="left", padx=3)
+        AeroBtn(btn_row, icon="↑", text="Move Up", w=90, h=26,
+                cmd=self._move_up, bg_override=A["glass_dark"]).pack(side="left", padx=3)
+        AeroBtn(btn_row, icon="↓", text="Move Down", w=100, h=26,
+                cmd=self._move_down, bg_override=A["glass_dark"]).pack(side="left", padx=3)
+        AeroBtn(btn_row, icon="✖", text="Remove", w=90, h=26, danger=True,
+                cmd=self._remove, bg_override=A["glass_dark"]).pack(side="left", padx=3)
+        AeroBtn(btn_row, icon="🗑", text="Clear", w=80, h=26, danger=True,
+                cmd=self._clear, bg_override=A["glass_dark"]).pack(side="right", padx=3)
+
+    def _refresh(self):
+        self.lb.delete(0, "end")
+        for i, info in enumerate(self.app.queue):
+            prefix = "▶ " if i == 0 else f"{i+1}. "
+            self.lb.insert("end", f"{prefix}{info['title']}  —  {info['artist']}")
+
+    def _play_selected(self, e=None):
+        sel = self.lb.curselection()
+        if not sel: return
+        idx = sel[0]
+        info = self.app.queue[idx]
+
+        self.app.queue.rotate(-idx)
+        self.app._play_from_queue()
+        self._refresh()
+
+    def _play_next(self):
+        sel = self.lb.curselection()
+        if not sel or len(self.app.queue) == 0: return
+        idx = sel[0]
+        item = self.app.queue[idx]
+        del self.app.queue[idx]
+        self.app.queue.appendleft(item)
+        self._refresh()
+
+    def _move_up(self):
+        sel = self.lb.curselection()
+        if not sel or sel[0] == 0: return
+        idx = sel[0]
+        self.app.queue[idx], self.app.queue[idx-1] = \
+            self.app.queue[idx-1], self.app.queue[idx]
+        self._refresh(); self.lb.selection_set(idx-1)
+
+    def _move_down(self):
+        sel = self.lb.curselection()
+        if not sel or sel[0] >= len(self.app.queue)-1: return
+        idx = sel[0]
+        self.app.queue[idx], self.app.queue[idx+1] = \
+            self.app.queue[idx+1], self.app.queue[idx]
+        self._refresh(); self.lb.selection_set(idx+1)
+
+    def _remove(self):
+        sel = self.lb.curselection()
+        if not sel: return
+        del self.app.queue[sel[0]]; self._refresh()
+
+    def _clear(self):
+        self.app.queue.clear(); self._refresh()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# apppppp
+# ══════════════════════════════════════════════════════════════════════════
+
 class PhoniPlayer:
     def __init__(self):
-        # Load config and apply theme before building UI
         self.cfg = load_config()
         self._apply_theme(self.cfg["theme"], rebuild=False)
 
         self.root = tk.Tk()
-        _init_fonts()  # load Montserrat into Tk now that a display exists
+        _init_fonts()
         self.root.title("PTMusic")
         self.root.geometry("1180x760")
         self.root.minsize(860, 580)
         self.root.configure(bg=A["win_bg"])
 
-        # Taskbar / window icon
         import sys as _sys2, os as _os2
         _base2 = getattr(_sys2, "_MEIPASS", _os2.path.dirname(_os2.path.abspath(__file__)))
         _icon_path2 = _os2.path.join(_base2, "PTMusic.png")
         try:
-            from PIL import Image, ImageTk
             self._wm_icon = ImageTk.PhotoImage(Image.open(_icon_path2))
             self.root.iconphoto(True, self._wm_icon)
-        except Exception:
-            pass
+        except Exception: pass
 
         self.library:  list[dict] = []
         self.filtered: list[dict] = []
-        self.cur_idx   = -1
-        self.playing   = False
-        self.paused    = False
-        self.scan_stop = threading.Event()
-        self.scan_th:  threading.Thread | None = None
+        self.queue:    deque      = deque()   # play queue
+        self.recent:   list[dict] = load_recent()  # recently played
+
+        self.cur_idx    = -1
+        self.playing    = False
+        self.paused     = False
+        self.scan_stop  = threading.Event()
+        self.scan_th    = None
         self.prog_after = None
-        self._tlen        = 0
-        self._seek_offset = 0.0  # seconds seeked to; get_pos() resets on seek
-        self._vol   = 0.8
-        self._use_folders = False   # False = scan all drives
-        self._logo_clicks = 0       # easter egg counter
-        self._konami_buf  = ""      # easter egg: type "phoni" or "MORE THEMES PLS"
+        self._tlen      = 0
+        self._seek_offset = 0.0
+        self._vol       = 0.8
+        self._use_folders = False
+        self._logo_clicks = 0
+        self._konami_buf  = ""
+        self._repeat      = False
+        self.mini_player  = None
+        self.queue_win    = None
+        self._cover_cache = {}   # path -> PhotoImage
 
         self._build()
         self._style()
         self.root.after(250, self._startup_dialog if self.cfg.get("scan_on_startup", True) else lambda: None)
         self.root.mainloop()
 
-
+    # ── ttheme ─────────────────────────────────────────────────────────────
     @staticmethod
-    def _apply_theme(theme_name: str, rebuild: bool = True):
-        """Apply a theme palette to the global A dict."""
-        palette = THEMES.get(theme_name, THEMES["Aero Light"])
-        A.update(palette)
+    def _apply_theme(theme_name, rebuild=True):
+        A.update(THEMES.get(theme_name, THEMES["Aero Light"]))
 
-    def _open_settings(self):
-        SettingsWindow(self)
+    def _open_settings(self): SettingsWindow(self)
 
     def _rebuild_ui(self):
-        """Destroy and recreate all widgets, then repopulate library."""
-        # Stop any active scan/playback tick first
         if self.prog_after:
             try: self.root.after_cancel(self.prog_after)
             except: pass
             self.prog_after = None
-
         for w in self.root.winfo_children():
             try: w.destroy()
             except: pass
-
         self.root.configure(bg=A["win_bg"])
-        self._build()
-        self._style()
-
-        # Re-apply ttk style with a unique style name to bust the cache
-        self._style()
-
-        # Repopulate tree from in-memory library
+        self._build(); self._style(); self._style()
         try:
             self.tree.delete(*self.tree.get_children())
             for info in (self.filtered if self.filtered else self.library):
                 self.tree.insert("", "end", iid=info["path"],
-                                 values=(info["title"], info["artist"],
-                                         info["album"], info["dur"],
-                                         info["ext"], fmt_size(info["size"]),
-                                         info["path"]))
+                                 values=(info["title"], info["artist"], info["album"],
+                                         info["dur"], info["ext"],
+                                         fmt_size(info["size"]), info["path"]))
             self.lib_count.config(text=f"({len(self.filtered or self.library)} tracks)")
             self._upd_stats()
-        except Exception:
-            pass
+        except Exception: pass
 
+    # ── build ─────────────────────────────────────────────────────────────
     def _build(self):
         self._build_titlebar()
         self._build_toolbar()
-
         body = tk.Frame(self.root, bg=A["win_bg"])
         body.pack(fill="both", expand=True, padx=5, pady=3)
-
         self._build_sidebar(body)
-
         right = tk.Frame(body, bg=A["win_bg"])
         right.pack(side="left", fill="both", expand=True, padx=(4,0))
         self._build_library(right)
         self._build_player(right)
-
         self._build_statusbar()
 
     def _build_titlebar(self):
-        tb = tk.Canvas(self.root, height=36, bg=A["title_bar"],
-                       highlightthickness=0)
+        tb = tk.Canvas(self.root, height=36, bg=A["title_bar"], highlightthickness=0)
         tb.pack(fill="x")
-
-        # Gradient-like: two horizontal bands
-        tb.create_rectangle(0, 0, 2000, 18,  fill=A["title_bar"],  outline="")
-        tb.create_rectangle(0, 18, 2000, 36, fill=A["title_bar2"], outline="")
-
-        # Thin glow line at top
-        tb.create_line(0, 0, 2000, 0, fill=A["border_glow"])
-
-        # Logo + title (no chrome buttons)
+        tb.create_rectangle(0,0,2000,18,  fill=A["title_bar"],  outline="")
+        tb.create_rectangle(0,18,2000,36, fill=A["title_bar2"], outline="")
+        tb.create_line(0,0,2000,0, fill=A["border_glow"])
         import sys as _sys, os as _os
         _base = getattr(_sys, "_MEIPASS", _os.path.dirname(_os.path.abspath(__file__)))
         _icon_path = _os.path.join(_base, "PTMusic.png")
         try:
-            from PIL import Image, ImageTk
-            _raw = Image.open(_icon_path).resize((24, 24), Image.LANCZOS)
+            _raw = Image.open(_icon_path).resize((24,24), Image.LANCZOS)
             self._title_img = ImageTk.PhotoImage(_raw)
-            tb.create_image(10, 18, image=self._title_img, anchor="w")
-            tb.create_text(40, 18, text="PTMusic",
-                           fill=A["accent_bright"], font=FONT_TITLE, anchor="w")
+            tb.create_image(10,18, image=self._title_img, anchor="w")
+            tb.create_text(40,18, text="PTMusic", fill=A["accent_bright"],
+                           font=FONT_TITLE, anchor="w")
         except Exception:
-            tb.create_text(12, 18, text="PTMusic",
-                           fill=A["accent_bright"], font=FONT_TITLE, anchor="w")
-
-        # Bottom border glow
-        sep = tk.Frame(self.root, bg=A["tb_border"], height=1)
-        sep.pack(fill="x")
-
-        # Easter egg: click the logo 7 times
+            tb.create_text(12,18, text="PTMusic", fill=A["accent_bright"],
+                           font=FONT_TITLE, anchor="w")
+        tk.Frame(self.root, bg=A["tb_border"], height=1).pack(fill="x")
         tb.bind("<Button-1>", self._logo_click)
-        # Easter egg: type "phoni" or "MORE THEMES PLS" anywhere
         self.root.bind_all("<Key>", self._konami)
 
     def _logo_click(self, e=None):
         self._logo_clicks += 1
         if self._logo_clicks >= 7:
-            self._logo_clicks = 0
-            EasterEggWindow(self.root)
+            self._logo_clicks = 0; EasterEggWindow(self.root)
 
     def _konami(self, e):
         ch = e.char
         if not ch: return
         self._konami_buf = (self._konami_buf + ch)[-15:]
-        # Easter egg 1: type "phoni"
         if self._konami_buf.lower().endswith("phoni"):
-            self._konami_buf = ""
-            EasterEggWindow(self.root)
-        # Easter egg 2: type "MORE THEMES PLS" (case-sensitive) → unlock Royale Noir
+            self._konami_buf = ""; EasterEggWindow(self.root)
         elif self._konami_buf.endswith("MORE THEMES PLS"):
             self._konami_buf = ""
             self.cfg["royale_noir_unlocked"] = True
-            save_config(self.cfg)
-            PhoniPlayer._apply_theme("Royale Noir")
             self.cfg["theme"] = "Royale Noir"
             save_config(self.cfg)
+            PhoniPlayer._apply_theme("Royale Noir")
             self._rebuild_ui()
-            messagebox.showinfo(
-                "👑 Royale Noir Unlocked",
-                "You found the secret theme!\n\nRoyale Noir is now available in Settings.",
-                parent=self.root)
+            messagebox.showinfo("👑 Royale Noir Unlocked",
+                                "You found the secret theme!\n\nRoyale Noir is now available in Settings.",
+                                parent=self.root)
 
     def _build_toolbar(self):
         bar = tk.Frame(self.root, bg=A["glass_dark"], height=36)
-        bar.pack(fill="x")
-        bar.pack_propagate(False)
+        bar.pack(fill="x"); bar.pack_propagate(False)
 
         self.scan_btn = AeroBtn(bar, icon="🔍", text="Scan All Drives",
                                 cmd=self._start_scan_all, w=140, h=26,
                                 bg_override=A["glass_dark"])
         self.scan_btn.pack(side="left", padx=(8,3), pady=5)
-
-        self.folder_btn = AeroBtn(bar, icon="📂", text="Scan Folders",
-                                  cmd=self._start_scan_folders, w=130, h=26,
-                                  bg_override=A["glass_dark"])
-        self.folder_btn.pack(side="left", padx=3, pady=5)
-
+        AeroBtn(bar, icon="📂", text="Scan Folders",
+                cmd=self._start_scan_folders, w=130, h=26,
+                bg_override=A["glass_dark"]).pack(side="left", padx=3, pady=5)
         self.stop_scan_btn = AeroBtn(bar, icon="⏹", text="Stop",
                                      cmd=self._stop_scan, w=70, h=26,
                                      danger=True, bg_override=A["glass_dark"])
-        # stop_scan_btn is hidden until a scan starts
-
-        tk.Frame(bar, bg=A["border"], width=1).pack(side="left", fill="y",
-                                                     padx=8, pady=6)
-
-        AeroBtn(bar, icon="🗑", text="Clear",
-                cmd=self._clear_library, w=78, h=26,
-                danger=True, bg_override=A["glass_dark"]
+        tk.Frame(bar, bg=A["border"], width=1).pack(side="left", fill="y", padx=8, pady=6)
+        AeroBtn(bar, icon="🗑", text="Clear", cmd=self._clear_library,
+                w=78, h=26, danger=True, bg_override=A["glass_dark"]
                 ).pack(side="left", padx=3, pady=5)
 
-        tk.Frame(bar, bg=A["border"], width=1).pack(side="right", fill="y",
-                                                      padx=4, pady=6)
-        AeroBtn(bar, icon="⚙", text="Settings",
-                cmd=self._open_settings, w=90, h=26,
-                bg_override=A["glass_dark"]).pack(side="right", padx=(0,4), pady=5)
+        tk.Frame(bar, bg=A["border"], width=1).pack(side="right", fill="y", padx=4, pady=6)
+        AeroBtn(bar, icon="⚙", text="Settings", cmd=self._open_settings,
+                w=90, h=26, bg_override=A["glass_dark"]
+                ).pack(side="right", padx=(0,4), pady=5)
+        AeroBtn(bar, icon="⬛", text="Mini", cmd=self._open_mini,
+                w=70, h=26, bg_override=A["glass_dark"]
+                ).pack(side="right", padx=3, pady=5)
+        AeroBtn(bar, icon="▶", text="Queue", cmd=self._open_queue,
+                w=80, h=26, bg_override=A["glass_dark"]
+                ).pack(side="right", padx=3, pady=5)
 
-        # Search on the right
         tk.Label(bar, text="Search:", bg=A["glass_dark"],
                  fg=A["text_dim"], font=FONT_SMALL).pack(side="right", padx=(0,6))
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *_: self._filter())
         ef = tk.Frame(bar, bg=A["border_glow"], padx=1, pady=1)
         ef.pack(side="right", padx=(0,8), pady=6)
-        tk.Entry(ef, textvariable=self.search_var,
-                 bg=A["glass_mid"], fg=A["text"],
-                 insertbackground=A["accent_hot"],
-                 relief="flat", font=FONT_UI, width=22
-                 ).pack(ipady=3)
-
+        tk.Entry(ef, textvariable=self.search_var, bg=A["glass_mid"], fg=A["text"],
+                 insertbackground=A["accent_hot"], relief="flat",
+                 font=FONT_UI, width=22).pack(ipady=3)
         tk.Frame(bar, bg=A["border"], height=1).pack(side="bottom", fill="x")
 
     def _build_sidebar(self, parent):
         sb = tk.Frame(parent, bg=A["sidebar"], width=210,
-                      highlightthickness=1,
-                      highlightbackground=A["border"])
-        sb.pack(side="left", fill="y", pady=0)
-        sb.pack_propagate(False)
+                      highlightthickness=1, highlightbackground=A["border"])
+        sb.pack(side="left", fill="y"); sb.pack_propagate(False)
 
         def sec(text):
-            f = tk.Frame(sb, bg=A["sidebar_sect"])
-            f.pack(fill="x")
-            tk.Label(f, text=text, bg=A["sidebar_sect"],
-                     fg=A["text_dim"], font=FONT_LABEL,
-                     anchor="w").pack(fill="x", padx=8, pady=(5,3))
+            f = tk.Frame(sb, bg=A["sidebar_sect"]); f.pack(fill="x")
+            tk.Label(f, text=text, bg=A["sidebar_sect"], fg=A["text_dim"],
+                     font=FONT_LABEL, anchor="w").pack(fill="x", padx=8, pady=(5,3))
             tk.Frame(sb, bg=A["border"], height=1).pack(fill="x")
 
         sec("SCAN SOURCE")
         src_frame = tk.Frame(sb, bg=A["sidebar"])
         src_frame.pack(fill="x", padx=8, pady=6)
-
         self.src_var = tk.StringVar(value="drives")
         for val, lbl in [("drives","All Drives"), ("folders","Selected Folders")]:
-            rb = tk.Radiobutton(src_frame, text=lbl, variable=self.src_var,
-                                value=val, command=self._toggle_src,
-                                bg=A["sidebar"], fg=A["text"],
-                                activebackground=A["sidebar"],
-                                activeforeground=A["accent"],
-                                selectcolor=A["glass_dark"],
-                                font=FONT_SMALL, anchor="w")
-            rb.pack(anchor="w")
-
-        # Folder list
+            tk.Radiobutton(src_frame, text=lbl, variable=self.src_var,
+                           value=val, command=self._toggle_src,
+                           bg=A["sidebar"], fg=A["text"],
+                           activebackground=A["sidebar"], activeforeground=A["accent"],
+                           selectcolor=A["glass_dark"], font=FONT_SMALL, anchor="w"
+                           ).pack(anchor="w")
         self.folder_list = FolderList(sb, on_change=None)
         self.folder_list.pack(fill="x", padx=8, pady=(0,6))
         self.folder_list.set_placeholder()
-
         tk.Frame(sb, bg=A["border"], height=1).pack(fill="x")
 
         sec("FORMATS")
         fmt_frame = tk.Frame(sb, bg=A["sidebar"])
         fmt_frame.pack(fill="x", padx=8, pady=6)
-
-        self.fmt_vars: dict[str, tk.BooleanVar] = {}
-        fmts = [("MP3","#3399ff"), ("FLAC","#33ddaa"), ("WAV","#ffaa33"),
-                ("M4A","#aa66ff"), ("MIDI","#ff6688"), ("WMA","#66ccdd")]
-        for ext, _ in fmts:
+        self.fmt_vars = {}
+        for ext, _ in [("MP3",""), ("FLAC",""), ("WAV",""),
+                       ("M4A",""), ("MIDI",""), ("WMA","")]:
             v = tk.BooleanVar(value=True)
             self.fmt_vars[ext] = v
-            row = tk.Frame(fmt_frame, bg=A["sidebar"])
-            row.pack(fill="x", pady=1)
-            tk.Checkbutton(row, text=ext, variable=v,
-                           command=self._filter,
+            row = tk.Frame(fmt_frame, bg=A["sidebar"]); row.pack(fill="x", pady=1)
+            tk.Checkbutton(row, text=ext, variable=v, command=self._filter,
                            bg=A["sidebar"], fg=A["text"],
-                           activebackground=A["sidebar"],
-                           activeforeground=A["accent"],
-                           selectcolor=A["glass_dark"],
-                           font=FONT_SMALL, anchor="w",
+                           activebackground=A["sidebar"], activeforeground=A["accent"],
+                           selectcolor=A["glass_dark"], font=FONT_SMALL, anchor="w"
                            ).pack(side="left")
+        tk.Frame(sb, bg=A["border"], height=1).pack(fill="x")
 
+        # ── recently played songs ────────────────────────────────────────────────
+        sec("RECENTLY PLAYED")
+        self.recent_frame = tk.Frame(sb, bg=A["sidebar"])
+        self.recent_frame.pack(fill="x", padx=4, pady=4)
+        self._refresh_recent()
         tk.Frame(sb, bg=A["border"], height=1).pack(fill="x")
 
         sec("LIBRARY INFO")
@@ -1076,225 +1141,269 @@ class PhoniPlayer:
                                    anchor="nw", wraplength=190)
         self.stats_lbl.pack(anchor="w", padx=8, pady=6)
 
+    def _refresh_recent(self):
+        for w in self.recent_frame.winfo_children(): w.destroy()
+        if not self.recent:
+            tk.Label(self.recent_frame, text="Nothing yet",
+                     bg=A["sidebar"], fg=A["text_dim"],
+                     font=FONT_SMALL).pack(anchor="w", padx=4)
+            return
+        for info in reversed(self.recent[-8:]):
+            row = tk.Frame(self.recent_frame, bg=A["sidebar"], cursor="hand2")
+            row.pack(fill="x", pady=1)
+            title = info["title"][:22] + ("…" if len(info["title"])>22 else "")
+            lbl = tk.Label(row, text=f"♪ {title}", bg=A["sidebar"],
+                           fg=A["text"], font=FONT_SMALL, anchor="w", cursor="hand2")
+            lbl.pack(side="left", padx=4)
+            lbl.bind("<Button-1>", lambda e, i=info: self._play_recent(i))
+            row.bind("<Button-1>", lambda e, i=info: self._play_recent(i))
+
+    def _play_recent(self, info):
+
+        if not os.path.exists(info["path"]):
+            messagebox.showwarning("File Missing",
+                                   f"Cannot find:\n{info['path']}", parent=self.root)
+            return
+            
+        match = next((t for t in self.library if t["path"] == info["path"]), None)
+        if match:
+            try:
+                self.cur_idx = self.filtered.index(match)
+            except ValueError:
+                self.filtered = list(self.library)
+                self.cur_idx  = self.filtered.index(match)
+        self._play(info)
+
     def _build_library(self, parent):
         lf = GlassPanel(parent)
         lf.pack(fill="both", expand=True, pady=(0,3))
-
-        hdr = tk.Frame(lf, bg=A["glass"])
-        hdr.pack(fill="x", padx=6, pady=(5,3))
+        hdr = tk.Frame(lf, bg=A["glass"]); hdr.pack(fill="x", padx=6, pady=(5,3))
         tk.Label(hdr, text="LIBRARY", bg=A["glass"],
                  fg=A["accent_bright"], font=FONT_BOLD).pack(side="left")
-        self.lib_count = tk.Label(hdr, text="",
-                                   bg=A["glass"], fg=A["text_dim"],
-                                   font=FONT_SMALL)
+        self.lib_count = tk.Label(hdr, text="", bg=A["glass"],
+                                   fg=A["text_dim"], font=FONT_SMALL)
         self.lib_count.pack(side="left", padx=8)
+        # que tracc
+        AeroBtn(hdr, icon="+ Queue", cmd=self._queue_selected, w=90, h=22,
+                bg_override=A["glass"]).pack(side="right", padx=4)
 
-        # Treeview wrapper
         tv_frame = tk.Frame(lf, bg=A["glass"])
         tv_frame.pack(fill="both", expand=True, padx=4, pady=(0,4))
-
         cols = ("title","artist","album","dur","ext","size","path")
-        self.tree = ttk.Treeview(tv_frame, columns=cols,
-                                  show="headings", selectmode="browse")
-        hdrs = [("title","Title",210),("artist","Artist",140),
-                ("album","Album",120),("dur","Dur.",58),
-                ("ext","Fmt",52),("size","Size",65),("path","Path",260)]
+        self.tree = ttk.Treeview(tv_frame, columns=cols, show="headings", selectmode="browse")
+        hdrs = [("title","Title",210),("artist","Artist",140),("album","Album",120),
+                ("dur","Dur.",58),("ext","Fmt",52),("size","Size",65),("path","Path",260)]
         for col, lbl, w in hdrs:
-            self.tree.heading(col, text=lbl,
-                              command=lambda c=col: self._sort(c))
+            self.tree.heading(col, text=lbl, command=lambda c=col: self._sort(c))
             self.tree.column(col, width=w, minwidth=36, stretch=(col=="title"))
-
         vsb = ttk.Scrollbar(tv_frame, orient="vertical",   command=self.tree.yview)
         hsb = ttk.Scrollbar(tv_frame, orient="horizontal", command=self.tree.xview)
         self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-
         hsb.pack(side="bottom", fill="x")
         vsb.pack(side="right",  fill="y")
         self.tree.pack(fill="both", expand=True)
-
         self.tree.bind("<Double-1>", self._dbl_click)
         self.tree.bind("<Return>",   self._dbl_click)
+        # Right-click context menu
+        self.ctx = tk.Menu(self.root, tearoff=0, bg=A["glass"], fg=A["text"],
+                           activebackground=A["sel"], activeforeground=A["accent_bright"])
+        self.ctx.add_command(label="▶  Play Now",        command=self._dbl_click)
+        self.ctx.add_command(label="+ Add to Queue",     command=self._queue_selected)
+        self.ctx.add_command(label="⏭  Play Next",       command=self._queue_next)
+        self.ctx.add_separator()
+        self.ctx.add_command(label="📋 Copy Path",        command=self._copy_path)
+        self.tree.bind("<Button-3>", self._show_ctx)
 
     def _build_player(self, parent):
-        pf = GlassPanel(parent, height=140)
-        pf.pack(fill="x")
-        pf.pack_propagate(False)
+        pf = GlassPanel(parent, height=160)
+        pf.pack(fill="x"); pf.pack_propagate(False)
 
+        # Cover art + now playing row
         np = tk.Frame(pf, bg=A["glass"])
         np.pack(fill="x", padx=12, pady=(8,0))
 
-        # YOOOOOOOOOOOO ITS AN ANIMATED DOT :OOOOOOOOOOOOOO
+        # Cover art
+        self.cover_lbl = tk.Label(np, bg=A["glass_mid"], width=60, height=60,
+                                   relief="flat", bd=0, text="♪",
+                                   font=("Segoe UI", 20), fg=A["text_dim"])
+        self.cover_lbl.pack(side="left", padx=(0,10))
+        self._cover_photo = None
+
         self.dot = tk.Label(np, text="◉", bg=A["glass"],
                             fg=A["text_dim"], font=("Segoe UI", 12))
         self.dot.pack(side="left", padx=(0,6))
-
-        info_col = tk.Frame(np, bg=A["glass"])
-        info_col.pack(side="left", fill="x", expand=True)
+        info_col = tk.Frame(np, bg=A["glass"]); info_col.pack(side="left", fill="x", expand=True)
         self.now_title = tk.Label(info_col, text="No track selected",
                                    bg=A["glass"], fg=A["accent_bright"],
                                    font=FONT_NOW, anchor="w")
         self.now_title.pack(anchor="w")
-        self.now_sub = tk.Label(info_col, text="",
-                                 bg=A["glass"], fg=A["text_dim"],
-                                 font=FONT_NOW_SM, anchor="w")
+        self.now_sub = tk.Label(info_col, text="", bg=A["glass"],
+                                 fg=A["text_dim"], font=FONT_NOW_SM, anchor="w")
         self.now_sub.pack(anchor="w")
 
-        pg = tk.Frame(pf, bg=A["glass"])
-        pg.pack(fill="x", padx=12, pady=(4,2))
-
+        pg = tk.Frame(pf, bg=A["glass"]); pg.pack(fill="x", padx=12, pady=(4,2))
         self.time_lbl = tk.Label(pg, text="0:00", width=5,
                                   bg=A["glass"], fg=A["text_dim"], font=FONT_MONO)
         self.time_lbl.pack(side="left")
-
         self.prog = tk.Canvas(pg, height=14, bg=A["prog_bg"],
-                              highlightthickness=1,
-                              highlightbackground=A["border"])
+                              highlightthickness=1, highlightbackground=A["border"])
         self.prog.pack(side="left", fill="x", expand=True, padx=6)
         self.prog.bind("<Button-1>", self._seek)
-
         self.dur_lbl = tk.Label(pg, text="0:00", width=5,
                                  bg=A["glass"], fg=A["text_dim"], font=FONT_MONO)
         self.dur_lbl.pack(side="left")
 
-        ctrl = tk.Frame(pf, bg=A["glass"])
-        ctrl.pack(pady=5)
-
+        ctrl = tk.Frame(pf, bg=A["glass"]); ctrl.pack(pady=5)
         self.btn_prev = AeroBtn(ctrl, icon="⏮", cmd=self._prev, w=44, h=32, bg_override=A["glass"])
         self.btn_play = AeroBtn(ctrl, icon="▶", cmd=self._playpause, w=56, h=36, bg_override=A["glass"])
         self.btn_stop = AeroBtn(ctrl, icon="⏹", cmd=self._stop, w=44, h=32, danger=True, bg_override=A["glass"])
         self.btn_next = AeroBtn(ctrl, icon="⏭", cmd=self._next, w=44, h=32, bg_override=A["glass"])
         self.btn_shuf = AeroBtn(ctrl, icon="🔀", cmd=self._shuffle, w=44, h=28, bg_override=A["glass"])
         self.btn_rep  = AeroBtn(ctrl, icon="🔁", cmd=self._toggle_repeat, w=44, h=28, bg_override=A["glass"])
-
         for b in (self.btn_prev, self.btn_play, self.btn_stop,
                   self.btn_next, self.btn_shuf, self.btn_rep):
             b.pack(side="left", padx=2)
-
-        # Volume
-        vf = tk.Frame(ctrl, bg=A["glass"])
-        vf.pack(side="left", padx=(14,0))
+        vf = tk.Frame(ctrl, bg=A["glass"]); vf.pack(side="left", padx=(14,0))
         tk.Label(vf, text="🔊", bg=A["glass"], fg=A["text_dim"],
-                 font=("Segoe UI", 9)).pack(side="left")
+                 font=("Segoe UI",9)).pack(side="left")
         self.vol_scale = tk.Scale(vf, from_=0, to=100, orient="horizontal",
-                                   length=100, showvalue=False,
-                                   bg=A["glass"], fg=A["text"],
-                                   troughcolor=A["prog_bg"],
-                                   activebackground=A["accent_hot"],
-                                   highlightthickness=0, bd=0,
-                                   command=self._set_vol)
-        self.vol_scale.set(int(self._vol * 100))
-        self.vol_scale.pack(side="left")
-
-        self._repeat = False
+                                   length=100, showvalue=False, bg=A["glass"], fg=A["text"],
+                                   troughcolor=A["prog_bg"], activebackground=A["accent_hot"],
+                                   highlightthickness=0, bd=0, command=self._set_vol)
+        self.vol_scale.set(int(self._vol*100)); self.vol_scale.pack(side="left")
 
     def _build_statusbar(self):
         sb = tk.Frame(self.root, bg=A["glass_dark"], height=22)
-        sb.pack(fill="x", side="bottom")
-        sb.pack_propagate(False)
+        sb.pack(fill="x", side="bottom"); sb.pack_propagate(False)
         tk.Frame(sb, bg=A["tb_border"], height=1).pack(fill="x", side="top")
         self.status_var = tk.StringVar(value="Ready")
-        tk.Label(sb, textvariable=self.status_var,
-                 bg=A["glass_dark"], fg=A["text_dim"],
-                 font=FONT_SMALL, anchor="w").pack(side="left", padx=8)
-        self.ind_lbl = tk.Label(sb, text="◉ STOPPED",
-                                 bg=A["glass_dark"], fg=A["text_dim"],
-                                 font=FONT_LABEL)
+        tk.Label(sb, textvariable=self.status_var, bg=A["glass_dark"],
+                 fg=A["text_dim"], font=FONT_SMALL, anchor="w").pack(side="left", padx=8)
+        self.ind_lbl = tk.Label(sb, text="◉ STOPPED", bg=A["glass_dark"],
+                                 fg=A["text_dim"], font=FONT_LABEL)
         self.ind_lbl.pack(side="right", padx=8)
 
     def _style(self):
         s = ttk.Style()
-        # Re-apply clam fresh; configure forces widget refresh even on repeat calls
         try: s.theme_use("clam")
-        except Exception: pass
-        s.configure("Treeview",
-                     background=A["glass"],
-                     foreground=A["text"],
-                     fieldbackground=A["glass"],
-                     rowheight=24, font=FONT_SMALL, borderwidth=0)
-        s.configure("Treeview.Heading",
-                     background=A["glass_mid"],
-                     foreground=A["accent_bright"],
-                     font=FONT_LABEL, relief="flat")
-        s.map("Treeview",
-              background=[("selected", A["sel"])],
+        except: pass
+        s.configure("Treeview", background=A["glass"], foreground=A["text"],
+                     fieldbackground=A["glass"], rowheight=24, font=FONT_SMALL, borderwidth=0)
+        s.configure("Treeview.Heading", background=A["glass_mid"],
+                     foreground=A["accent_bright"], font=FONT_LABEL, relief="flat")
+        s.map("Treeview", background=[("selected", A["sel"])],
               foreground=[("selected", A["accent_bright"])])
-        s.configure("Vertical.TScrollbar",
-                     background=A["glass_mid"],
-                     troughcolor=A["prog_bg"],
-                     bordercolor=A["border"],
+        s.configure("Vertical.TScrollbar", background=A["glass_mid"],
+                     troughcolor=A["prog_bg"], bordercolor=A["border"],
                      arrowcolor=A["text_dim"], borderwidth=0)
-        s.configure("Horizontal.TScrollbar",
-                     background=A["glass_mid"],
-                     troughcolor=A["prog_bg"],
-                     bordercolor=A["border"],
+        s.configure("Horizontal.TScrollbar", background=A["glass_mid"],
+                     troughcolor=A["prog_bg"], bordercolor=A["border"],
                      arrowcolor=A["text_dim"], borderwidth=0)
+
+    # ── que ─────────────────────────────────────────────────────────────
+    def _open_queue(self):
+        if self.queue_win and self.queue_win.win.winfo_exists():
+            self.queue_win.win.lift(); return
+        self.queue_win = QueueWindow(self)
+
+    def _queue_selected(self):
+        sel = self.tree.selection()
+        if not sel: return
+        path = sel[0]
+        info = next((t for t in self.library if t["path"] == path), None)
+        if info:
+            self.queue.append(info)
+            self.status_var.set(f"Added to queue: {info['title']}")
+            if self.queue_win and self.queue_win.win.winfo_exists():
+                self.queue_win._refresh()
+
+    def _queue_next(self):
+        sel = self.tree.selection()
+        if not sel: return
+        path = sel[0]
+        info = next((t for t in self.library if t["path"] == path), None)
+        if info:
+            self.queue.appendleft(info)
+            self.status_var.set(f"Playing next: {info['title']}")
+            if self.queue_win and self.queue_win.win.winfo_exists():
+                self.queue_win._refresh()
+
+    def _play_from_queue(self):
+        if self.queue:
+            info = self.queue.popleft()
+            self._play(info)
+            if self.queue_win and self.queue_win.win.winfo_exists():
+                self.queue_win._refresh()
+
+    # ── small player ────────────────────────────────────────────────────────
+    def _open_mini(self):
+        if self.mini_player and self.mini_player.win.winfo_exists():
+            self.mini_player.win.lift(); return
+        self.mini_player = MiniPlayer(self)
+
+    # ── context so that you can FINALLY COPY THE LINK!!! ──────────────────────────────────────────────────────
+    def _show_ctx(self, e):
+        try:
+            self.tree.selection_set(self.tree.identify_row(e.y))
+            self.ctx.tk_popup(e.x_root, e.y_root)
+        finally:
+            self.ctx.grab_release()
+
+    def _copy_path(self):
+        sel = self.tree.selection()
+        if not sel: return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(sel[0])
+        self.status_var.set(f"Copied: {sel[0]}")
 
     def _toggle_src(self):
         self._use_folders = (self.src_var.get() == "folders")
-        if self._use_folders:
-            self.folder_list.set_placeholder()
-            # Clear placeholder and let user add
-            self.folder_list.lb.delete(0, "end")
-        else:
-            self.folder_list.set_placeholder()
+        if not self._use_folders: self.folder_list.set_placeholder()
+        else: self.folder_list.lb.delete(0, "end")
 
     def _startup_dialog(self):
         if messagebox.askyesno("Welcome",
-                                "Welcome to PTMusic!\n\n"
-                                "Would you like to scan all drives?\n"
-                                "You can also scan specific drives later.",
-                                parent=self.root):
+                                "Welcome to PTMusic!\n\nWould you like to scan all drives?\n"
+                                "You can also scan specific folders later.", parent=self.root):
             self._start_scan_all()
 
     def _start_scan_all(self):
-        self.src_var.set("drives")
-        self._use_folders = False
-        self.folder_list.set_placeholder()
-        self._run_scan(get_all_drives())
+        self.src_var.set("drives"); self._use_folders = False
+        self.folder_list.set_placeholder(); self._run_scan(get_all_drives())
 
     def _start_scan_folders(self):
-        self.src_var.set("folders")
-        self._use_folders = True
+        self.src_var.set("folders"); self._use_folders = True
         folders = self.folder_list.get_folders()
         if not folders:
-            # Ask to pick one now
             path = filedialog.askdirectory(title="Select Folder to Scan")
             if not path: return
             self.folder_list.folders.append(path)
-            self.folder_list.lb.delete(0, "end")
+            self.folder_list.lb.delete(0,"end")
             self.folder_list.lb.insert("end", path)
             folders = [path]
         self._run_scan(folders)
 
-    def _run_scan(self, paths: list):
+    def _run_scan(self, paths):
         if self.scan_th and self.scan_th.is_alive():
-            self.scan_stop.set()
-            self.scan_th.join(timeout=2)
+            self.scan_stop.set(); self.scan_th.join(timeout=2)
         self.scan_stop.clear()
         self._clear_library(confirm=False)
-
         self.status_var.set(f"Scanning {len(paths)} location(s)…")
         self.stop_scan_btn.pack(side="left", padx=3, pady=5)
-
         def run():
-            scan_paths(paths,
-                       callback=self._on_found,
-                       stop_event=self.scan_stop)
+            scan_paths(paths, callback=self._on_found, stop_event=self.scan_stop)
             self.root.after(0, self._scan_done)
-
         self.scan_th = threading.Thread(target=run, daemon=True)
         self.scan_th.start()
 
-    def _stop_scan(self):
-        self.scan_stop.set()
+    def _stop_scan(self): self.scan_stop.set()
 
     def _on_found(self, info):
         self.library.append(info)
         self.root.after(0, lambda i=info: self._add_row(i))
         n = len(self.library)
         if n % 20 == 0:
-            self.root.after(0, lambda x=n:
-                self.status_var.set(f"Found {x} tracks…"))
+            self.root.after(0, lambda x=n: self.status_var.set(f"Found {x} tracks…"))
 
     def _add_row(self, info):
         if self.tree.exists(info["path"]): return
@@ -1307,34 +1416,25 @@ class PhoniPlayer:
     def _scan_done(self):
         n = len(self.library)
         self.status_var.set(f"Scan complete — {n} track{'s' if n!=1 else ''} found")
-        self.stop_scan_btn.pack_forget()
-        self._upd_stats()
-        self._filter()
+        self.stop_scan_btn.pack_forget(); self._upd_stats(); self._filter()
 
     def _clear_library(self, confirm=True):
-        if confirm and self.cfg.get("confirm_clear", True) and not messagebox.askyesno("Clear Library",
-                                                "Remove all tracks?",
-                                                parent=self.root):
+        if confirm and self.cfg.get("confirm_clear", True) and not messagebox.askyesno(
+                "Clear Library", "Remove all tracks?", parent=self.root):
             return
-        self._stop()
-        self.library.clear()
-        self.filtered.clear()
+        self._stop(); self.library.clear(); self.filtered.clear()
         self.tree.delete(*self.tree.get_children())
-        self._upd_stats()
-        self.status_var.set("Library cleared")
+        self._upd_stats(); self.status_var.set("Library cleared")
 
     def _filter(self, *_):
         q = self.search_var.get().lower()
         enabled = {k for k, v in self.fmt_vars.items() if v.get()}
         if "MIDI" in enabled: enabled.add("MID")
-
         self.filtered = [
             t for t in self.library
             if t["ext"] in enabled and (
-                not q or q in t["title"].lower()
-                       or q in t["artist"].lower()
-                       or q in t["album"].lower()
-                       or q in t["path"].lower())
+                not q or q in t["title"].lower() or q in t["artist"].lower()
+                       or q in t["album"].lower() or q in t["path"].lower())
         ]
         self.tree.delete(*self.tree.get_children())
         for info in self.filtered:
@@ -1351,7 +1451,7 @@ class PhoniPlayer:
 
     def _upd_stats(self):
         n = len(self.library)
-        fmts: dict[str, int] = {}
+        fmts = {}
         for t in self.library: fmts[t["ext"]] = fmts.get(t["ext"],0)+1
         lines = [f"{n} track{'s' if n!=1 else ''}"]
         for k, v in sorted(fmts.items()): lines.append(f"  {k}: {v}")
@@ -1364,15 +1464,13 @@ class PhoniPlayer:
         path = sel[0]
         self.filtered = [t for t in self.library if self.tree.exists(t["path"])]
         try:
-            self.cur_idx = next(i for i,t in enumerate(self.filtered)
-                                if t["path"] == path)
+            self.cur_idx = next(i for i,t in enumerate(self.filtered) if t["path"]==path)
         except StopIteration: return
         self._play(self.filtered[self.cur_idx])
 
     def _play(self, info):
         if not PYGAME_AVAILABLE:
-            messagebox.showerror("pygame missing",
-                                  "pip install pygame", parent=self.root)
+            messagebox.showerror("pygame missing", "pip install pygame", parent=self.root)
             return
         if not os.path.exists(info["path"]):
             self.status_var.set(f"Missing: {info['path']}"); return
@@ -1389,9 +1487,19 @@ class PhoniPlayer:
         if MUTAGEN_AVAILABLE:
             try:
                 a = MutagenFile(info["path"])
-                if a and hasattr(a.info,'length'):
-                    self._tlen = a.info.length
+                if a and hasattr(a.info,'length'): self._tlen = a.info.length
             except: pass
+
+        # Cover art
+        self._load_cover(info["path"])
+
+        # Recently played
+        self.recent = [r for r in self.recent if r["path"] != info["path"]]
+        self.recent.append({"path": info["path"], "title": info["title"],
+                            "artist": info["artist"]})
+        save_recent(self.recent)
+        try: self._refresh_recent()
+        except: pass
 
         self.now_title.config(text=info["title"])
         self.now_sub.config(text=f"{info['artist']}  ·  {info['album']}  ·  {info['ext']}")
@@ -1401,50 +1509,55 @@ class PhoniPlayer:
         self.ind_lbl.config(text="◉ PLAYING", fg=A["green"])
         self.status_var.set(f"Playing: {info['title']}")
         if self.tree.exists(info["path"]):
-            self.tree.selection_set(info["path"])
-            self.tree.see(info["path"])
+            self.tree.selection_set(info["path"]); self.tree.see(info["path"])
         self._tick()
+
+    def _load_cover(self, path):
+        """Load and display cover art for currently playing track."""
+        try:
+            if path in self._cover_cache:
+                img = self._cover_cache[path]
+            else:
+                img = _get_cover_art(path, size=60)
+                self._cover_cache[path] = img
+            if img:
+                self._cover_photo = img
+                self.cover_lbl.config(image=img, text="", width=60, height=60)
+            else:
+                self._cover_photo = None
+                self.cover_lbl.config(image="", text="♪", font=("Segoe UI",20),
+                                       fg=A["text_dim"], width=4, height=2)
+        except Exception:
+            pass
 
     def _tick(self):
         if self.prog_after: self.root.after_cancel(self.prog_after)
-        if not (PYGAME_AVAILABLE and self.playing and not self.paused):
-            return
+        if not (PYGAME_AVAILABLE and self.playing and not self.paused): return
         raw = pygame.mixer.music.get_pos() / 1000.0
-        if raw < 0:
-            self._track_ended(); return
-        pos = self._seek_offset + raw   # real playback position
-
+        if raw < 0: self._track_ended(); return
+        pos = self._seek_offset + raw
         m, s = int(pos//60), int(pos%60)
         self.time_lbl.config(text=f"{m}:{s:02d}")
-
-        W = self.prog.winfo_width()
-        H = self.prog.winfo_height()
+        W = self.prog.winfo_width(); H = self.prog.winfo_height()
         self.prog.delete("all")
         if self._tlen > 0 and W > 0:
-            frac = min(pos/self._tlen, 1.0)
-            fw = int(frac * W)
-            # Trough
+            frac = min(pos/self._tlen, 1.0); fw = int(frac*W)
             self.prog.create_rectangle(0,0,W,H, fill=A["prog_bg"], outline="")
-            # Fill gradient (two bands)
             if fw > 0:
                 mid = H//2
                 self.prog.create_rectangle(0,0,fw,mid,   fill=A["prog_bright"], outline="")
-                self.prog.create_rectangle(0,mid,fw,H,    fill=A["prog_fill"],   outline="")
-                # Gloss stipple
-                self.prog.create_rectangle(0,0,fw,mid,
-                    fill="#ffffff", outline="", stipple="gray12")
-            # Knob
+                self.prog.create_rectangle(0,mid,fw,H,   fill=A["prog_fill"],   outline="")
+                self.prog.create_rectangle(0,0,fw,mid, fill="#ffffff", outline="", stipple="gray12")
             kx = fw
-            self.prog.create_oval(kx-6,1,kx+6,H-1,
-                fill=A["accent_bright"], outline=A["accent_hot"])
-            self.prog.create_oval(kx-3,H//2-3,kx+3,H//2+3,
-                fill=A["glass"], outline="")
-
+            self.prog.create_oval(kx-6,1,kx+6,H-1, fill=A["accent_bright"], outline=A["accent_hot"])
+            self.prog.create_oval(kx-3,H//2-3,kx+3,H//2+3, fill=A["glass"], outline="")
         self.prog_after = self.root.after(400, self._tick)
 
     def _track_ended(self):
         if self._repeat and self.cur_idx >= 0:
             self._play(self.filtered[self.cur_idx])
+        elif self.queue:
+            self._play_from_queue()
         else:
             self._next()
 
@@ -1452,17 +1565,12 @@ class PhoniPlayer:
         if not (PYGAME_AVAILABLE and self.playing): return
         W = self.prog.winfo_width()
         if W <= 0 or self._tlen <= 0: return
-        target = max(0.0, min(e.x / W * self._tlen, self._tlen))
+        target = max(0.0, min(e.x/W*self._tlen, self._tlen))
         try:
-            # set_pos() is unreliable for MP3 in pygame — play(start=) is more robust
-            pygame.mixer.music.play(start=target)
-            self._seek_offset = target
-        except Exception:
-            try:
-                pygame.mixer.music.set_pos(target)
-                self._seek_offset = target
-            except Exception:
-                pass
+            pygame.mixer.music.play(start=target); self._seek_offset = target
+        except:
+            try: pygame.mixer.music.set_pos(target); self._seek_offset = target
+            except: pass
 
     def _playpause(self):
         if not PYGAME_AVAILABLE: return
@@ -1471,15 +1579,12 @@ class PhoniPlayer:
             if sel: self._dbl_click()
             return
         if self.paused:
-            pygame.mixer.music.unpause()
-            self.paused = False
+            pygame.mixer.music.unpause(); self.paused = False
             self.btn_play.icon = "⏸"; self.btn_play._draw()
             self.dot.config(fg=A["green"])
-            self.ind_lbl.config(text="◉ PLAYING", fg=A["green"])
-            self._tick()
+            self.ind_lbl.config(text="◉ PLAYING", fg=A["green"]); self._tick()
         else:
-            pygame.mixer.music.pause()
-            self.paused = True
+            pygame.mixer.music.pause(); self.paused = True
             self.btn_play.icon = "▶"; self.btn_play._draw()
             self.dot.config(fg=A["accent"])
             self.ind_lbl.config(text="❚❚ PAUSED", fg=A["accent"])
@@ -1491,13 +1596,15 @@ class PhoniPlayer:
         self.btn_play.icon = "▶"; self.btn_play._draw()
         self.dot.config(fg=A["text_dim"])
         self.ind_lbl.config(text="◉ STOPPED", fg=A["text_dim"])
-        self.now_title.config(text="No track selected")
-        self.now_sub.config(text="")
-        self.time_lbl.config(text="0:00")
-        self.prog.delete("all")
+        self.now_title.config(text="No track selected"); self.now_sub.config(text="")
+        self.time_lbl.config(text="0:00"); self.prog.delete("all")
+        self.cover_lbl.config(image="", text="♪", font=("Segoe UI",20),
+                               fg=A["text_dim"], width=4, height=2)
         self.status_var.set("Stopped")
 
     def _next(self):
+        if self.queue:
+            self._play_from_queue(); return
         if not self.filtered: return
         self.cur_idx = (self.cur_idx + 1) % len(self.filtered)
         self._play(self.filtered[self.cur_idx])
@@ -1520,17 +1627,11 @@ class PhoniPlayer:
 
     def _toggle_repeat(self):
         self._repeat = not self._repeat
-        self.btn_rep.text = "🔁" if not self._repeat else ""
-        self.btn_rep.icon = "🔁"
-        col = A["accent_hot"] if self._repeat else A["btn_border"]
-        self.btn_rep.danger = False
-        # Visually indicate repeat is on by changing border color
         self.status_var.set("Repeat: " + ("ON" if self._repeat else "OFF"))
 
     def _set_vol(self, val):
         self._vol = int(val)/100.0
         if PYGAME_AVAILABLE: pygame.mixer.music.set_volume(self._vol)
-
 
 if __name__ == "__main__":
     import traceback, sys, os
@@ -1538,33 +1639,27 @@ if __name__ == "__main__":
     log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "phoni_crash.log")
 
     class Tee:
-        """Safe stream tee — works even when stdout/stderr are None (windowed exe)."""
         def __init__(self, stream, logfile):
-            self._s = stream  # may be None under PyInstaller --windowed
-            self._f = logfile
+            self._s = stream; self._f = logfile
         def write(self, data):
             if self._s is not None:
                 try: self._s.write(data)
-                except Exception: pass
+                except: pass
             try: self._f.write(data); self._f.flush()
-            except Exception: pass
+            except: pass
         def flush(self):
             if self._s is not None:
                 try: self._s.flush()
-                except Exception: pass
+                except: pass
 
     with open(log_path, "w", encoding="utf-8") as lf:
         sys.stdout = Tee(sys.__stdout__, lf)
         sys.stderr = Tee(sys.__stderr__, lf)
-        print("PTMusic starting")
-        print("Python", sys.version)
+        print("PTMusic starting"); print("Python", sys.version)
         print("pygame  :", PYGAME_AVAILABLE)
         print("mutagen :", MUTAGEN_AVAILABLE)
+        print("pillow  :", PIL_AVAILABLE)
         print("-" * 60)
-        if not PYGAME_AVAILABLE:
-            print("WARNING: pip install pygame")
-        if not MUTAGEN_AVAILABLE:
-            print("WARNING: pip install mutagen")
         try:
             PhoniPlayer()
         except Exception:
