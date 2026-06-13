@@ -167,6 +167,20 @@ THEMES = {
         "danger":"#c62828","danger_hover":"#e53935","green":"#00695c",
         "sidebar":"#dcedc8","sidebar_sect":"#c8e6c9","row_alt":"#f1f8e9",
     },
+    "Sunset": {
+        "win_bg":"#b6603e","glass_dark":"#fde4d0","glass":"#fff3e8",
+        "glass_mid":"#fdd9bd","glass_light":"#fff8f0","glass_lighter":"#ffffff",
+        "border":"#e8965f","border_glow":"#ffc89a","accent":"#e8732e",
+        "accent_bright":"#c5501a","accent_hot":"#ff7f2a",
+        "title_bar":"#d9783e","title_bar2":"#f4a868","tb_border":"#b85f2c",
+        "btn":"#fff3e8","btn_top":"#ffffff","btn_hover":"#fde0c8",
+        "btn_press":"#fbcca5","btn_border":"#e8965f",
+        "text":"#5a2e10","text_dim":"#a06840","text_bright":"#3d1c08",
+        "sel":"#fcd9b8","sel_border":"#ff8c3a",
+        "prog_bg":"#fbd9bd","prog_fill":"#e8732e","prog_bright":"#ffac6b",
+        "danger":"#c0392b","danger_hover":"#e05040","green":"#5d9c47",
+        "sidebar":"#fde4d0","sidebar_sect":"#fbd2b0","row_alt":"#fff6ee",
+    },
     "Royale Noir": {
         "win_bg":"#0e0414","glass_dark":"#160b24","glass":"#1e1030",
         "glass_mid":"#2a1545","glass_light":"#38206a","glass_lighter":"#4a2d80",
@@ -182,7 +196,7 @@ THEMES = {
         "sidebar":"#160b24","sidebar_sect":"#0e0414","row_alt":"#1a0d2e",
     },
 }
-PUBLIC_THEMES = ["Aero Light", "Aero Dark", "Mint"]
+PUBLIC_THEMES = ["Aero Light", "Aero Dark", "Mint", "Sunset"]
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────
 import sys as _cfg_sys, os as _cfg_os
@@ -338,7 +352,7 @@ def fmt_size(b):
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  widgets
+#  WIDGETS
 # ══════════════════════════════════════════════════════════════════════════
 
 class AeroBtn(tk.Label):
@@ -436,6 +450,10 @@ class FolderList(tk.Frame):
         self.lb.delete(0, "end")
         self.lb.insert("end", "  (all drives)")
 
+
+# ══════════════════════════════════════════════════════════════════════════
+#  SETTINGS WINDOW
+# ══════════════════════════════════════════════════════════════════════════
 
 class SettingsWindow:
     def __init__(self, app):
@@ -644,7 +662,7 @@ class SettingsWindow:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  egssssss
+#  EASTER EGG
 # ══════════════════════════════════════════════════════════════════════════
 
 class EasterEggWindow:
@@ -693,7 +711,7 @@ class EasterEggWindow:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  small play
+#  MINI PLAYER
 # ══════════════════════════════════════════════════════════════════════════
 
 class MiniPlayer:
@@ -712,7 +730,7 @@ class MiniPlayer:
         self._art_img = None
         self._build()
         self._update()
-    
+        # drag to move
         win.bind("<ButtonPress-1>",   self._drag_start)
         win.bind("<B1-Motion>",        self._drag_move)
 
@@ -725,7 +743,7 @@ class MiniPlayer:
 
     def _build(self):
         win = self.win
-        
+        # thin colour strip at top
         tk.Frame(win, bg=A["accent"], height=3).pack(fill="x")
 
         body = tk.Frame(win, bg=A["glass_dark"])
@@ -748,12 +766,12 @@ class MiniPlayer:
                                   font=FONT_SMALL, anchor="w")
         self.mini_sub.pack(fill="x")
 
-    
+        # Mini progress bar
         self.mini_prog = tk.Canvas(info, height=4, bg=A["prog_bg"],
                                     highlightthickness=0)
         self.mini_prog.pack(fill="x", pady=(3,0))
 
-
+        # Controls
         ctrl = tk.Frame(body, bg=A["glass_dark"])
         ctrl.pack(side="right", padx=(6,0))
         for icon, cmd in [("⏮", self.app._prev),
@@ -771,13 +789,13 @@ class MiniPlayer:
     def _update(self):
         try:
             app = self.app
-
+            # Title / sub
             title = app.now_title.cget("text") if hasattr(app, 'now_title') else "Nothing playing"
             sub   = app.now_sub.cget("text")   if hasattr(app, 'now_sub')   else ""
             self.mini_title.config(text=title[:45] + ("…" if len(title)>45 else ""))
             self.mini_sub.config(text=sub[:55] + ("…" if len(sub)>55 else ""))
 
-
+            # Progress bar
             W = self.mini_prog.winfo_width()
             self.mini_prog.delete("all")
             if app._tlen > 0 and W > 0 and PYGAME_AVAILABLE and app.playing:
@@ -789,7 +807,7 @@ class MiniPlayer:
                     if fw > 0:
                         self.mini_prog.create_rectangle(0,0,fw,4, fill=A["prog_fill"], outline="")
 
-
+            # Cover art
             if app.playing and app.cur_idx >= 0 and 0 <= app.cur_idx < len(app.filtered):
                 path = app.filtered[app.cur_idx]["path"]
                 img = _get_cover_art(path, size=60)
@@ -805,7 +823,7 @@ class MiniPlayer:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  que window
+#  QUEUE WINDOW
 # ══════════════════════════════════════════════════════════════════════════
 
 class QueueWindow:
@@ -830,7 +848,7 @@ class QueueWindow:
                  fg=A["accent_bright"], font=FONT_TITLE).pack(side="left", padx=12, pady=6)
         tk.Frame(self.win, bg=A["tb_border"], height=1).pack(fill="x")
 
-
+        # Queue listbox
         lf = GlassPanel(self.win)
         lf.pack(fill="both", expand=True, padx=6, pady=6)
         self.lb = tk.Listbox(lf, bg=A["glass"], fg=A["text"],
@@ -843,7 +861,7 @@ class QueueWindow:
         self.lb.pack(fill="both", expand=True, padx=4, pady=4)
         self.lb.bind("<Double-1>", self._play_selected)
 
-
+        # Buttons
         btn_row = tk.Frame(self.win, bg=A["glass_dark"])
         btn_row.pack(fill="x", padx=6, pady=(0,6))
         AeroBtn(btn_row, icon="▶", text="Play Next", w=100, h=26,
@@ -868,7 +886,7 @@ class QueueWindow:
         if not sel: return
         idx = sel[0]
         info = self.app.queue[idx]
-
+        # Move to front and play
         self.app.queue.rotate(-idx)
         self.app._play_from_queue()
         self._refresh()
@@ -908,7 +926,7 @@ class QueueWindow:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# apppppp
+#  MAIN APP
 # ══════════════════════════════════════════════════════════════════════════
 
 class PhoniPlayer:
@@ -958,7 +976,7 @@ class PhoniPlayer:
         self.root.after(250, self._startup_dialog if self.cfg.get("scan_on_startup", True) else lambda: None)
         self.root.mainloop()
 
-    # ── ttheme ─────────────────────────────────────────────────────────────
+    # ── THEME ─────────────────────────────────────────────────────────────
     @staticmethod
     def _apply_theme(theme_name, rebuild=True):
         A.update(THEMES.get(theme_name, THEMES["Aero Light"]))
@@ -986,7 +1004,7 @@ class PhoniPlayer:
             self._upd_stats()
         except Exception: pass
 
-    # ── build ─────────────────────────────────────────────────────────────
+    # ── BUILD ─────────────────────────────────────────────────────────────
     def _build(self):
         self._build_titlebar()
         self._build_toolbar()
@@ -1062,6 +1080,7 @@ class PhoniPlayer:
                 w=78, h=26, danger=True, bg_override=A["glass_dark"]
                 ).pack(side="left", padx=3, pady=5)
 
+        # Right side
         tk.Frame(bar, bg=A["border"], width=1).pack(side="right", fill="y", padx=4, pady=6)
         AeroBtn(bar, icon="⚙", text="Settings", cmd=self._open_settings,
                 w=90, h=26, bg_override=A["glass_dark"]
@@ -1127,7 +1146,7 @@ class PhoniPlayer:
                            ).pack(side="left")
         tk.Frame(sb, bg=A["border"], height=1).pack(fill="x")
 
-        # ── recently played songs ────────────────────────────────────────────────
+        # ── RECENTLY PLAYED ────────────────────────────────────────────────
         sec("RECENTLY PLAYED")
         self.recent_frame = tk.Frame(sb, bg=A["sidebar"])
         self.recent_frame.pack(fill="x", padx=4, pady=4)
@@ -1159,12 +1178,12 @@ class PhoniPlayer:
             row.bind("<Button-1>", lambda e, i=info: self._play_recent(i))
 
     def _play_recent(self, info):
-
+        # Check it still exists on disk
         if not os.path.exists(info["path"]):
             messagebox.showwarning("File Missing",
                                    f"Cannot find:\n{info['path']}", parent=self.root)
             return
-            
+        # If it's in the library, locate and play it properly
         match = next((t for t in self.library if t["path"] == info["path"]), None)
         if match:
             try:
@@ -1183,7 +1202,7 @@ class PhoniPlayer:
         self.lib_count = tk.Label(hdr, text="", bg=A["glass"],
                                    fg=A["text_dim"], font=FONT_SMALL)
         self.lib_count.pack(side="left", padx=8)
-        # que tracc
+        # Queue selected track
         AeroBtn(hdr, icon="+ Queue", cmd=self._queue_selected, w=90, h=22,
                 bg_override=A["glass"]).pack(side="right", padx=4)
 
@@ -1300,7 +1319,7 @@ class PhoniPlayer:
                      troughcolor=A["prog_bg"], bordercolor=A["border"],
                      arrowcolor=A["text_dim"], borderwidth=0)
 
-    # ── que ─────────────────────────────────────────────────────────────
+    # ── QUEUE ─────────────────────────────────────────────────────────────
     def _open_queue(self):
         if self.queue_win and self.queue_win.win.winfo_exists():
             self.queue_win.win.lift(); return
@@ -1335,13 +1354,13 @@ class PhoniPlayer:
             if self.queue_win and self.queue_win.win.winfo_exists():
                 self.queue_win._refresh()
 
-    # ── small player ────────────────────────────────────────────────────────
+    # ── MINI PLAYER ────────────────────────────────────────────────────────
     def _open_mini(self):
         if self.mini_player and self.mini_player.win.winfo_exists():
             self.mini_player.win.lift(); return
         self.mini_player = MiniPlayer(self)
 
-    # ── context so that you can FINALLY COPY THE LINK!!! ──────────────────────────────────────────────────────
+    # ── CONTEXT MENU ──────────────────────────────────────────────────────
     def _show_ctx(self, e):
         try:
             self.tree.selection_set(self.tree.identify_row(e.y))
@@ -1356,6 +1375,7 @@ class PhoniPlayer:
         self.root.clipboard_append(sel[0])
         self.status_var.set(f"Copied: {sel[0]}")
 
+    # ── SCAN SOURCE ────────────────────────────────────────────────────────
     def _toggle_src(self):
         self._use_folders = (self.src_var.get() == "folders")
         if not self._use_folders: self.folder_list.set_placeholder()
@@ -1633,6 +1653,8 @@ class PhoniPlayer:
         self._vol = int(val)/100.0
         if PYGAME_AVAILABLE: pygame.mixer.music.set_volume(self._vol)
 
+
+# ══════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     import traceback, sys, os
 
