@@ -22,6 +22,9 @@ It kinda looks like Aero.
 ## All supported files
 PTMusic supports MP3, FLAC, WAV, M4A, MIDI and WMA. THe only ones tested have been MP3 and MIDI.
 
+## Goes well with PTMusic:
+PTMusic does well with PTBrowser, and eventually another PT program that I wont spoil the name of :)))))
+
 ## Why PTMusic?
 idk why not
 
