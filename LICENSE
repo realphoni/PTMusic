@@ -1,46 +1,25 @@
-PolyForm Strict License 1.0.0
-https://polyformproject.org/licenses/strict/1.0.0
+Phoni Technology Semi-Free Source License (PTSFSL)
+PTMusic End-User License Agreement (EULA), Version 1.0
 
-Acceptance
-In order to get any license under these terms, you must agree to them as both strict obligations and conditions to all your licenses.
+Copyright (c) 2026 Phoni Technology. All rights reserved.
 
-Copyright License
-The licensor grants you a copyright license for the software to do everything you might do with the software that would otherwise infringe the licensor's copyright in it for any permitted purpose, other than distributing the software or making changes or new works based on the software.
+Applicability
+This license applies to PTMusic repository revisions distributed with this LICENSE and to official PTMusic releases beginning with 26.9.3 that carry it. Earlier releases remain governed by the license provided with those releases. Third-party components retain their own licenses.
 
-Patent License
-The licensor grants you a patent license for the software that covers patent claims the licensor can license, or becomes able to license, that you would infringe by using the software.
+1. Personal, non-commercial use
+You may download, install, run, study, and copy PTMusic for personal, non-commercial purposes. You may create a non-commercial fork and share unmodified copies, provided you comply with this license.
 
-Noncommercial Purposes
-Any noncommercial purpose is a permitted purpose.
+2. Modification limit
+You may modify PTMusic source code, or distribute a modified fork, only when the starting source is an official PTMusic main release under this license whose version ends in .0 (the <year>.<month>.0 form, such as 26.10.0). You may not modify source from a beta or patch release, including 26.9.3, or incorporate such source into a modified fork under this license. You may fork a non-main release without changing it.
 
-Personal Uses
-Personal use for research, experiment, and testing for the benefit of public knowledge, personal study, private entertainment, hobby projects, amateur pursuits, or religious observance, without any anticipated commercial application, is use for a permitted purpose.
+3. Credit for forks
+Every publicly shared fork must retain existing copyright notices and this license, prominently credit "Based on PTMusic by Phoni Technology" with a link to https://github.com/realphoni/PTMusic, and clearly identify itself as a fork. If you made permitted changes, describe them. Do not imply that Phoni Technology endorses your fork.
 
-Noncommercial Organizations
-Use by any charitable organization, educational institution, public research organization, public safety or health organization, environmental protection organization, or government institution is use for a permitted purpose regardless of the source of funding or obligations resulting from the funding.
+4. Non-commercial only
+No commercial use, modification, or distribution is permitted. In particular, you may not sell PTMusic or a fork, charge for access, include it in a paid product or service, or distribute it as part of an advertising-supported offering without separate written permission from Phoni Technology.
 
-Fair Use
-You may have "fair use" rights for the software under the law. These terms do not limit them.
+5. Rights reserved
+Except for the permissions stated here, all rights are reserved. This license does not grant rights to Phoni Technology trademarks or override rights you have independently under applicable law. Phoni Technology may offer separate permissions in writing.
 
-No Other Rights
-These terms do not allow you to sublicense or transfer any of your licenses to anyone else, or prevent the licensor from granting licenses to anyone else. These terms do not imply any other licenses.
-
-Patent Defense
-If you make any written claim that the software infringes or contributes to infringement of any patent, your patent license for the software granted under these terms ends immediately. If your company makes such a claim, your patent license ends immediately for work on behalf of your company.
-
-Violations
-The first time you are notified in writing that you have violated any of these terms, or done anything with the software not covered by your licenses, your licenses can nonetheless continue if you come into full compliance with these terms, and take practical steps to correct past violations, within 32 days of receiving notice. Otherwise, all your licenses end immediately.
-
-No Liability
-As far as the law allows, the software comes as is, without any warranty or condition, and the licensor will not be liable to you for any damages arising out of these terms or the use or nature of the software, under any kind of legal claim.
-
-Definitions
-The licensor is the individual or entity offering these terms, and the software is the software the licensor makes available under these terms.
-
-You refers to the individual or entity agreeing to these terms.
-
-Your company is any legal entity, sole proprietorship, or other kind of organization that you work for, plus all organizations that have control over, are under the control of, or are under common control with that organization. Control means ownership of substantially all the assets of an entity, or the power to direct its management and policies by vote, contract, or otherwise. Control can be direct or indirect.
-
-Your licenses are all the licenses granted to you for the software under these terms.
-
-Use means anything you do with the software requiring one of your licenses.
+6. No warranty
+To the extent allowed by law, PTMusic is provided "as is" without warranty, and Phoni Technology is not liable for damages arising from its use.
