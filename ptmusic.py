@@ -4,7 +4,9 @@ Phoni Technology 2026
 """
 
 import os
+import sys
 import json
+import shutil
 import threading
 import platform
 import random
@@ -32,21 +34,28 @@ try:
 except ImportError:
     PIL_AVAILABLE = False
 
+try:
+    import pystray
+    PYSTRAY_AVAILABLE = True
+except ImportError:
+    PYSTRAY_AVAILABLE = False
+
 
 A = {
-    "win_bg":        "#6f8fb1",
-    "glass_dark":    "#d7e7f7",
-    "glass":         "#edf5fc",
+    "win_bg":        "#dceaf6",
+    "glass_dark":    "#e5f0fa",
+    "glass":         "#f8fbff",
     "glass_mid":     "#c8def2",
     "glass_light":   "#f5fbff",
     "glass_lighter": "#ffffff",
     "border":        "#7aa7d9",
     "border_glow":   "#bfe2ff",
-    "accent":        "#3b8edb",
+    "accent":        "#2468a8",
     "accent_bright": "#0b5cad",
     "accent_hot":    "#1f7de2",
-    "title_bar":     "#5d89c9",
-    "title_bar2":    "#8fb7ea",
+    "title_bar":     "#365f94",
+    "title_bar2":    "#456f9f",
+    "title_text":    "#ffffff",
     "tb_border":     "#4f79b7",
     "btn":           "#eaf3fc",
     "btn_top":       "#ffffff",
@@ -64,9 +73,9 @@ A = {
     "danger":        "#c03a3a",
     "danger_hover":  "#e04848",
     "green":         "#2fa34f",
-    "sidebar":       "#dce9f7",
-    "sidebar_sect":  "#c7dbf2",
-    "row_alt":       "#eef6fd",
+    "sidebar":       "#e5f0fa",
+    "sidebar_sect":  "#d5e5f4",
+    "row_alt":       "#f2f8fd",
 }
 
 # ── FONT LOADER ───────────────────────────────────────────────────────────
@@ -123,28 +132,263 @@ def _init_fonts():
     except Exception:
         pass
 
+# ── TRANSLATIONS ──────────────────────────────────────────────────────────
+_STRINGS = {
+    "English": {
+        # Toolbar
+        "scan_all":         "Scan All Drives",
+        "scan_folders":     "Scan Folders",
+        "stop":             "Stop",
+        "clear":            "Clear",
+        "settings":         "Settings",
+        "mini":             "Mini",
+        "queue":            "Queue",
+        "search":           "Search:",
+        # Sidebar sections
+        "scan_source":      "SCAN SOURCE",
+        "all_drives":       "All Drives",
+        "sel_folders":      "Selected Folders",
+        "formats":          "FORMATS",
+        "recently_played":  "RECENTLY PLAYED",
+        "nothing_yet":      "Nothing yet",
+        "library_info":     "LIBRARY INFO",
+        "no_files":         "No files loaded",
+        # Library
+        "library":          "LIBRARY",
+        "add_folder":       "Add Folder",
+        "remove":           "Remove",
+        "queue_btn":        "+ Queue",
+        "col_title":        "Title",
+        "col_artist":       "Artist",
+        "col_album":        "Album",
+        "col_dur":          "Dur.",
+        "col_fmt":          "Fmt",
+        "col_size":         "Size",
+        "col_path":         "Path",
+        "albums_tab":       "Albums",
+        "library_tab":      "Library",
+        "search_albums":    "Search albums:",
+        "sort":             "Sort:",
+        "sort_name":        "Name",
+        "sort_artist":      "Artist",
+        "sort_tracks":      "Tracks",
+        "no_albums":        "No albums found.\nScan your music library first.",
+        # Player
+        "no_track":         "No track selected",
+        # Context menu
+        "ctx_play":         "▶  Play Now",
+        "ctx_queue":        "+ Add to Queue",
+        "ctx_next":         "⏭  Play Next",
+        "ctx_copy":         "📋 Copy Path",
+        # Status
+        "ready":            "Ready",
+        "stopped":          "◉ STOPPED",
+        "playing":          "◉ PLAYING",
+        "paused":           "❚❚ PAUSED",
+        "repeat_on":        "Repeat: ON",
+        "repeat_off":       "Repeat: OFF",
+        "shuffled":         "Library shuffled",
+        "cleared":          "Library cleared",
+        "muted":            "Muted",
+        "unmuted":          "Unmuted — Volume: {}%",
+        "volume":           "Volume: {}%",
+        "scan_complete":    "Scan complete — {} track{} found",
+        "found_tracks":     "Found {} tracks…",
+        "scanning":         "Scanning {} location(s)…",
+        "playing_status":   "Playing: {}",
+        "copied":           "Copied: {}",
+        "added_queue":      "Added to queue: {}",
+        "playing_next":     "Playing next: {}",
+        # Settings
+        "settings_title":   "PTMusic Settings",
+        "appearance":       "Appearance",
+        "playback":         "Playback",
+        "lib_tab":          "Library",
+        "about":            "About",
+        "apply_close":      "Apply & Close",
+        "cancel":           "Cancel",
+        "reset_defaults":   "Reset Defaults",
+        "theme":            "Theme:",
+        "preview":          "Preview:",
+        "font_size":        "Font size:",
+        "show_path_col":    "Show path column:",
+        "tick_ms":          "Progress update (ms):",
+        "crossfade_ms":     "Crossfade (ms):",
+        "off":              "(0 = off)",
+        "scan_startup":     "Scan on startup:",
+        "notifications":    "Track notifications:",
+        "notif_hint":       "(requires winotify, plyer, or win10toast)",
+        "language":         "Language / Sprache:",
+        "lang_restart":     "(restart to apply)",
+        "confirm_clear":    "Confirm before clearing:",
+        "cfg_location":     "Config file location:",
+        "open_cfg_folder":  "Open config folder",
+        "reset_confirm":    "Reset all settings to defaults?",
+        "reset_title":      "Reset",
+        # About
+        "version":          "Version 26.9.3",
+        "publisher":        "Phoni Technology  ·  2026",
+        "supports":         "Supports MP3 · FLAC · WAV · M4A · MIDI · WMA\nBuilt with Python, Tkinter, pygame, mutagen, Pillow",
+        "shortcuts_title":  "Keyboard Shortcuts",
+        "shortcuts_text":   "Space  Play / Pause        N  Next track\nP  Previous track          S  Stop\n←/→  Skip ±5s              Shift+←/→  Skip ±30s\n↑/↓  Volume ±5%            M  Mute toggle\nR  Repeat toggle           H  Shuffle      Q  Add to queue",
+        # Dialogs
+        "welcome_title":    "Welcome",
+        "welcome_msg":      "Welcome to PTMusic!\n\nWould you like to scan all drives?\nYou can also scan specific folders later.",
+        "clear_title":      "Clear Library",
+        "clear_msg":        "Remove all tracks?",
+        "missing_file":     "File Missing",
+        "missing_msg":      "Cannot find:\n{}",
+        "queue_title":      "▶  Play Queue",
+        "play_next_btn":    "Play Next",
+        "move_up":          "Move Up",
+        "move_down":        "Move Down",
+        "remove_btn":       "Remove",
+        "clear_btn":        "Clear",
+        "tracks_found":     "{} track{} found",
+        "tracks_label":     "{} track{}",
+    },
+    "Deutsch": {
+        "scan_all":         "Alle Laufwerke scannen",
+        "scan_folders":     "Ordner scannen",
+        "stop":             "Stopp",
+        "clear":            "Leeren",
+        "settings":         "Einstellungen",
+        "mini":             "Mini",
+        "queue":            "Warteschlange",
+        "search":           "Suche:",
+        "scan_source":      "SCAN-QUELLE",
+        "all_drives":       "Alle Laufwerke",
+        "sel_folders":      "Ausgewählte Ordner",
+        "formats":          "FORMATE",
+        "recently_played":  "ZULETZT GESPIELT",
+        "nothing_yet":      "Noch nichts gespielt",
+        "library_info":     "BIBLIOTHEK-INFO",
+        "no_files":         "Keine Dateien geladen",
+        "library":          "BIBLIOTHEK",
+        "add_folder":       "Ordner hinzufügen",
+        "remove":           "Entfernen",
+        "queue_btn":        "+ Warteschlange",
+        "col_title":        "Titel",
+        "col_artist":       "Künstler",
+        "col_album":        "Album",
+        "col_dur":          "Dauer",
+        "col_fmt":          "Format",
+        "col_size":         "Größe",
+        "col_path":         "Pfad",
+        "albums_tab":       "Alben",
+        "library_tab":      "Bibliothek",
+        "search_albums":    "Alben suchen:",
+        "sort":             "Sortierung:",
+        "sort_name":        "Name",
+        "sort_artist":      "Künstler",
+        "sort_tracks":      "Titel",
+        "no_albums":        "Keine Alben gefunden.\nBibliothek zuerst scannen.",
+        "no_track":         "Kein Titel ausgewählt",
+        "ctx_play":         "▶  Jetzt abspielen",
+        "ctx_queue":        "+ Zur Warteschlange",
+        "ctx_next":         "⏭  Als Nächstes",
+        "ctx_copy":         "📋 Pfad kopieren",
+        "ready":            "Bereit",
+        "stopped":          "◉ GESTOPPT",
+        "playing":          "◉ SPIELT",
+        "paused":           "❚❚ PAUSIERT",
+        "repeat_on":        "Wiederholen: AN",
+        "repeat_off":       "Wiederholen: AUS",
+        "shuffled":         "Bibliothek gemischt",
+        "cleared":          "Bibliothek geleert",
+        "muted":            "Stummgeschaltet",
+        "unmuted":          "Ton an — Lautstärke: {}%",
+        "volume":           "Lautstärke: {}%",
+        "scan_complete":    "Scan abgeschlossen — {} Titel{} gefunden",
+        "found_tracks":     "{} Titel gefunden…",
+        "scanning":         "{} Speicherort(e) wird gescannt…",
+        "playing_status":   "Spielt: {}",
+        "copied":           "Kopiert: {}",
+        "added_queue":      "Zur Warteschlange: {}",
+        "playing_next":     "Nächster Titel: {}",
+        "settings_title":   "PTMusic Einstellungen",
+        "appearance":       "Erscheinungsbild",
+        "playback":         "Wiedergabe",
+        "lib_tab":          "Bibliothek",
+        "about":            "Über",
+        "apply_close":      "Anwenden & Schließen",
+        "cancel":           "Abbrechen",
+        "reset_defaults":   "Standard zurücksetzen",
+        "theme":            "Design:",
+        "preview":          "Vorschau:",
+        "font_size":        "Schriftgröße:",
+        "show_path_col":    "Pfadspalte anzeigen:",
+        "tick_ms":          "Fortschrittsintervall (ms):",
+        "crossfade_ms":     "Überblendung (ms):",
+        "off":              "(0 = aus)",
+        "scan_startup":     "Beim Start scannen:",
+        "notifications":    "Titelbenachrichtigungen:",
+        "notif_hint":       "(benötigt winotify, plyer oder win10toast)",
+        "language":         "Language / Sprache:",
+        "lang_restart":     "(Neustart erforderlich)",
+        "confirm_clear":    "Vor dem Leeren bestätigen:",
+        "cfg_location":     "Konfigurationsdatei:",
+        "open_cfg_folder":  "Konfigurationsordner öffnen",
+        "reset_confirm":    "Alle Einstellungen zurücksetzen?",
+        "reset_title":      "Zurücksetzen",
+        "version":          "Version 26.9.3",
+        "publisher":        "Phoni Technology  ·  2026",
+        "supports":         "Unterstützt MP3 · FLAC · WAV · M4A · MIDI · WMA\nErstellt mit Python, Tkinter, pygame, mutagen, Pillow",
+        "shortcuts_title":  "Tastenkürzel",
+        "shortcuts_text":   "Leertaste  Abspielen/Pause   N  Nächster Titel\nP  Vorheriger Titel          S  Stopp\n←/→  Überspringen ±5s       Shift+←/→  ±30s\n↑/↓  Lautstärke ±5%         M  Stummschalten\nR  Wiederholen               H  Mischen    Q  Warteschlange",
+        "welcome_title":    "Willkommen",
+        "welcome_msg":      "Willkommen bei PTMusic!\n\nMöchten Sie alle Laufwerke scannen?\nSie können auch später bestimmte Ordner scannen.",
+        "clear_title":      "Bibliothek leeren",
+        "clear_msg":        "Alle Titel entfernen?",
+        "missing_file":     "Datei fehlt",
+        "missing_msg":      "Nicht gefunden:\n{}",
+        "queue_title":      "▶  Warteschlange",
+        "play_next_btn":    "Als Nächstes",
+        "move_up":          "Nach oben",
+        "move_down":        "Nach unten",
+        "remove_btn":       "Entfernen",
+        "clear_btn":        "Leeren",
+        "tracks_found":     "{} Titel{} gefunden",
+        "tracks_label":     "{} Titel{}",
+    },
+}
+
+def _t(key: str, *args) -> str:
+    """Return translated string for current language, with optional .format() args."""
+    lang = _CURRENT_LANG
+    s = _STRINGS.get(lang, _STRINGS["English"]).get(key)
+    if s is None:
+        s = _STRINGS["English"].get(key, key)
+    if args:
+        try: s = s.format(*args)
+        except Exception: pass
+    return s
+
+_CURRENT_LANG = "English"   # updated from config at startup
+
+
 # ── THEMES ────────────────────────────────────────────────────────────────
 THEMES = {
     "Aero Light": {
-        "win_bg":"#6f8fb1","glass_dark":"#d7e7f7","glass":"#edf5fc",
+        "win_bg":"#dceaf6","glass_dark":"#e5f0fa","glass":"#f8fbff",
         "glass_mid":"#c8def2","glass_light":"#f5fbff","glass_lighter":"#ffffff",
-        "border":"#7aa7d9","border_glow":"#bfe2ff","accent":"#3b8edb",
+        "border":"#7aa7d9","border_glow":"#bfe2ff","accent":"#2468a8",
         "accent_bright":"#0b5cad","accent_hot":"#1f7de2",
-        "title_bar":"#5d89c9","title_bar2":"#8fb7ea","tb_border":"#4f79b7",
+        "title_bar":"#365f94","title_bar2":"#456f9f","title_text":"#ffffff","tb_border":"#4f79b7",
         "btn":"#eaf3fc","btn_top":"#ffffff","btn_hover":"#d9ecff",
         "btn_press":"#bdd9f5","btn_border":"#7aa7d9",
         "text":"#1d3557","text_dim":"#56708f","text_bright":"#003b73",
         "sel":"#cfe8ff","sel_border":"#3399ff",
         "prog_bg":"#c7dff5","prog_fill":"#3a95e8","prog_bright":"#7bc3ff",
         "danger":"#c03a3a","danger_hover":"#e04848","green":"#2fa34f",
-        "sidebar":"#dce9f7","sidebar_sect":"#c7dbf2","row_alt":"#eef6fd",
+        "sidebar":"#e5f0fa","sidebar_sect":"#d5e5f4","row_alt":"#f2f8fd",
     },
     "Aero Dark": {
         "win_bg":"#0a1628","glass_dark":"#0d1f3c","glass":"#132840",
         "glass_mid":"#1a3a58","glass_light":"#224d72","glass_lighter":"#2d6494",
         "border":"#1e5a8a","border_glow":"#2e87cc","accent":"#3ea6e0",
         "accent_bright":"#7fd4ff","accent_hot":"#00aaff",
-        "title_bar":"#0f2340","title_bar2":"#162e50","tb_border":"#1a4a7a",
+        "title_bar":"#0f2340","title_bar2":"#162e50","title_text":"#ddeeff","tb_border":"#1a4a7a",
         "btn":"#163352","btn_top":"#1e4570","btn_hover":"#1f4d7a",
         "btn_press":"#0c1f33","btn_border":"#2a6aaa",
         "text":"#ddeeff","text_dim":"#6a9cbb","text_bright":"#b8dff5",
@@ -154,39 +398,68 @@ THEMES = {
         "sidebar":"#0e2238","sidebar_sect":"#0a1a2c","row_alt":"#0f2235",
     },
     "Mint": {
-        "win_bg":"#e8f5e9","glass_dark":"#c8e6c9","glass":"#f1f8f1",
-        "glass_mid":"#dcedc8","glass_light":"#f9fbe7","glass_lighter":"#ffffff",
-        "border":"#81c784","border_glow":"#a5d6a7","accent":"#388e3c",
+        "win_bg":"#e7f4eb","glass_dark":"#dcefe1","glass":"#f8fcf8",
+        "glass_mid":"#d7e9d9","glass_light":"#fbfefb","glass_lighter":"#ffffff",
+        "border":"#81c784","border_glow":"#a5d6a7","accent":"#2d7046",
         "accent_bright":"#2e7d32","accent_hot":"#43a047",
-        "title_bar":"#388e3c","title_bar2":"#43a047","tb_border":"#2e7d32",
+        "title_bar":"#276a48","title_bar2":"#2e7651","title_text":"#ffffff","tb_border":"#245e40",
         "btn":"#f1f8f1","btn_top":"#ffffff","btn_hover":"#dcedc8",
         "btn_press":"#c8e6c9","btn_border":"#81c784",
-        "text":"#1b5e20","text_dim":"#558b2f","text_bright":"#003300",
+        "text":"#194b34","text_dim":"#416b50","text_bright":"#103c2a",
         "sel":"#c8e6c9","sel_border":"#43a047",
         "prog_bg":"#c8e6c9","prog_fill":"#388e3c","prog_bright":"#81c784",
         "danger":"#c62828","danger_hover":"#e53935","green":"#00695c",
-        "sidebar":"#dcedc8","sidebar_sect":"#c8e6c9","row_alt":"#f1f8e9",
+        "sidebar":"#e0f0e3","sidebar_sect":"#cfe4d3","row_alt":"#f2faf3",
     },
-    "Sunset": {
-        "win_bg":"#b6603e","glass_dark":"#fde4d0","glass":"#fff3e8",
-        "glass_mid":"#fdd9bd","glass_light":"#fff8f0","glass_lighter":"#ffffff",
-        "border":"#e8965f","border_glow":"#ffc89a","accent":"#e8732e",
-        "accent_bright":"#c5501a","accent_hot":"#ff7f2a",
-        "title_bar":"#d9783e","title_bar2":"#f4a868","tb_border":"#b85f2c",
-        "btn":"#fff3e8","btn_top":"#ffffff","btn_hover":"#fde0c8",
-        "btn_press":"#fbcca5","btn_border":"#e8965f",
-        "text":"#5a2e10","text_dim":"#a06840","text_bright":"#3d1c08",
-        "sel":"#fcd9b8","sel_border":"#ff8c3a",
-        "prog_bg":"#fbd9bd","prog_fill":"#e8732e","prog_bright":"#ffac6b",
-        "danger":"#c0392b","danger_hover":"#e05040","green":"#5d9c47",
-        "sidebar":"#fde4d0","sidebar_sect":"#fbd2b0","row_alt":"#fff6ee",
+
+    "Cherry": {
+        "win_bg":"#1a0a0d","glass_dark":"#2a0d12","glass":"#3a1018",
+        "glass_mid":"#4d1520","glass_light":"#661c2a","glass_lighter":"#802235",
+        "border":"#8b2030","border_glow":"#cc3348","accent":"#d94060",
+        "accent_bright":"#ff7088","accent_hot":"#ff2244",
+        "title_bar":"#130809","title_bar2":"#1f0c10","title_text":"#ffe0e5","tb_border":"#8b2030",
+        "btn":"#3a1018","btn_top":"#4d1520","btn_hover":"#5c1a25",
+        "btn_press":"#0f0608","btn_border":"#8b2030",
+        "text":"#ffe0e5","text_dim":"#b06070","text_bright":"#fff0f2",
+        "sel":"#5c1a25","sel_border":"#d94060",
+        "prog_bg":"#130809","prog_fill":"#b02840","prog_bright":"#e05070",
+        "danger":"#ff2244","danger_hover":"#ff4466","green":"#44cc77",
+        "sidebar":"#200c10","sidebar_sect":"#150809","row_alt":"#2a0e14",
+    },
+    "Sand": {
+        "win_bg":"#f0e8d8","glass_dark":"#f3e9d6","glass":"#fffaf1",
+        "glass_mid":"#ecdfc0","glass_light":"#fefaf0","glass_lighter":"#ffffff",
+        "border":"#c8a878","border_glow":"#e8c898","accent":"#7d5933",
+        "accent_bright":"#7a5828","accent_hot":"#c09050",
+        "title_bar":"#72512e","title_bar2":"#805e35","title_text":"#ffffff","tb_border":"#684a2c",
+        "btn":"#fdf6e8","btn_top":"#ffffff","btn_hover":"#ecdfc0",
+        "btn_press":"#ddd0a8","btn_border":"#c8a878",
+        "text":"#3a2808","text_dim":"#665235","text_bright":"#1e1404",
+        "sel":"#e8d8a8","sel_border":"#c09050",
+        "prog_bg":"#ddd0a8","prog_fill":"#a07840","prog_bright":"#d0a860",
+        "danger":"#b03020","danger_hover":"#d04030","green":"#507030",
+        "sidebar":"#f2e7d0","sidebar_sect":"#e7d7b8","row_alt":"#fcf4e5",
+    },
+    "Ocean Teal": {
+        "win_bg":"#091e22","glass_dark":"#0d282d","glass":"#12343a",
+        "glass_mid":"#1a4549","glass_light":"#22575a","glass_lighter":"#2e6b6a",
+        "border":"#397b78","border_glow":"#63bdb1","accent":"#4fc4b2",
+        "accent_bright":"#a3eee0","accent_hot":"#6ce3d0",
+        "title_bar":"#0b3035","title_bar2":"#13505a","title_text":"#e4f7f2","tb_border":"#397b78",
+        "btn":"#174046","btn_top":"#25575a","btn_hover":"#245b5e",
+        "btn_press":"#0b282d","btn_border":"#397b78",
+        "text":"#e4f7f2","text_dim":"#a5c7c2","text_bright":"#ffffff",
+        "sel":"#24575b","sel_border":"#6ce3d0",
+        "prog_bg":"#0a2428","prog_fill":"#3ba999","prog_bright":"#84e2d3",
+        "danger":"#f27783","danger_hover":"#ff98a0","green":"#7de0a2",
+        "sidebar":"#0e2a30","sidebar_sect":"#0a2428","row_alt":"#153940",
     },
     "Royale Noir": {
         "win_bg":"#0e0414","glass_dark":"#160b24","glass":"#1e1030",
         "glass_mid":"#2a1545","glass_light":"#38206a","glass_lighter":"#4a2d80",
         "border":"#5c2d8a","border_glow":"#9b4dca","accent":"#b06ee8",
         "accent_bright":"#d4a0ff","accent_hot":"#c060ff",
-        "title_bar":"#12091e","title_bar2":"#1e0f30","tb_border":"#5c2d8a",
+        "title_bar":"#12091e","title_bar2":"#1e0f30","title_text":"#ecdcff","tb_border":"#5c2d8a",
         "btn":"#1e1030","btn_top":"#2a1545","btn_hover":"#2a1545",
         "btn_press":"#0e0414","btn_border":"#5c2d8a",
         "text":"#ecdcff","text_dim":"#9966cc","text_bright":"#f0d0ff",
@@ -196,7 +469,7 @@ THEMES = {
         "sidebar":"#160b24","sidebar_sect":"#0e0414","row_alt":"#1a0d2e",
     },
 }
-PUBLIC_THEMES = ["Aero Light", "Aero Dark", "Mint", "Sunset"]
+PUBLIC_THEMES = ["Aero Light", "Aero Dark", "Mint", "Cherry", "Sand", "Ocean Teal"]
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────
 import sys as _cfg_sys, os as _cfg_os
@@ -215,12 +488,19 @@ DEFAULTS = {
     "scan_on_startup":  True,
     "tick_interval_ms": 400,
     "crossfade_ms":     0,
+    "notifications":    True,
+    "win_geometry":     "1180x760",
+    "win_position":     "",
+    "language":         "English",
+    "minimize_to_tray": True,
 }
 
 def load_config():
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
+        for key in ("discord_rich_presence", "discord_client_id", "discord_large_image"):
+            data.pop(key, None)
         for k, v in DEFAULTS.items():
             data.setdefault(k, v)
         return data
@@ -229,6 +509,8 @@ def load_config():
 
 def save_config(cfg: dict):
     try:
+        cfg = {key: value for key, value in cfg.items()
+               if key not in ("discord_rich_presence", "discord_client_id", "discord_large_image")}
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2)
     except Exception:
@@ -247,6 +529,7 @@ def save_recent(items: list):
             json.dump(items[-50:], f, indent=2)
     except Exception:
         pass
+
 
 SUPPORTED_EXT = {'.mp3', '.wav', '.mid', '.midi', '.m4a', '.flac', '.wma'}
 
@@ -345,11 +628,177 @@ def _get_cover_art(path: str, size: int = 80):
     except Exception:
         return None
 
+def _get_cover_art_bytes(path: str):
+    """Extract embedded cover art as raw bytes (for export). Returns bytes or None."""
+    if not MUTAGEN_AVAILABLE:
+        return None
+    try:
+        audio = MutagenFile(path)
+        if not audio: return None
+        if hasattr(audio, 'tags') and audio.tags:
+            for tag in audio.tags.values():
+                if hasattr(tag, 'data') and hasattr(tag, 'mime'):
+                    return tag.data
+                if hasattr(tag, 'value') and isinstance(getattr(tag,'value',None), bytes):
+                    return tag.value
+        if hasattr(audio, 'pictures') and audio.pictures:
+            return audio.pictures[0].data
+        if hasattr(audio, 'tags') and audio.tags:
+            covr = audio.tags.get('covr')
+            if covr: return bytes(covr[0])
+    except Exception:
+        pass
+    return None
+
+
+# ── .PTM FILE FORMAT ─────────────────────────────────────────────────────
+# A .ptm file is a ZIP container holding:
+#   metadata.json  — title/artist/album/dur/ext + PTMusic marker
+#   cover.jpg      — optional embedded cover art
+#   audio.<ext>    — the original audio file, unmodified
+PTM_EXT = ".ptm"
+
+def export_ptm(info: dict, dest_path: str) -> tuple[bool, str]:
+    """Bundle a track's audio + metadata + cover art into a .ptm file.
+    Returns (success, message)."""
+    import zipfile
+    src_path = info["path"]
+    if not os.path.exists(src_path):
+        return False, f"Source file not found:\n{src_path}"
+    try:
+        meta = {
+            "ptm_version": 1,
+            "app":         "PTMusic",
+            "title":       info.get("title", "—"),
+            "artist":      info.get("artist", "—"),
+            "album":       info.get("album", "—"),
+            "dur":         info.get("dur", "—"),
+            "dur_sec":     info.get("dur_sec", 0),
+            "ext":         info.get("ext", Path(src_path).suffix.lstrip(".").upper()),
+            "orig_filename": os.path.basename(src_path),
+        }
+        cover = _get_cover_art_bytes(src_path)
+
+        with zipfile.ZipFile(dest_path, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("metadata.json", json.dumps(meta, indent=2, ensure_ascii=False))
+            audio_name = "audio" + Path(src_path).suffix.lower()
+            z.write(src_path, audio_name)
+            if cover:
+                z.writestr("cover.img", cover)
+        return True, f"Exported to:\n{dest_path}"
+    except Exception as e:
+        return False, f"Export failed:\n{e}"
+
+
+def import_ptm(ptm_path: str, extract_dir: str) -> tuple[bool, str, dict]:
+    """Extract a .ptm file's audio into extract_dir and return its info dict.
+    Returns (success, message, info_dict)."""
+    import zipfile
+    try:
+        with zipfile.ZipFile(ptm_path, "r") as z:
+            names = z.namelist()
+            meta_name = next((n for n in names if n == "metadata.json"), None)
+            audio_name = next((n for n in names if n.startswith("audio.")), None)
+            if not meta_name or not audio_name:
+                return False, "Not a valid .ptm file (missing metadata or audio).", {}
+
+            meta = json.loads(z.read(meta_name).decode("utf-8"))
+            audio_ext = Path(audio_name).suffix
+
+            os.makedirs(extract_dir, exist_ok=True)
+            # Build a safe output filename from the original title
+            safe_title = "".join(c for c in meta.get("title", "imported")
+                                 if c.isalnum() or c in " -_()[]").strip() or "imported"
+            out_path = os.path.join(extract_dir, safe_title + audio_ext)
+            # Avoid overwriting existing files
+            counter = 1
+            base_out = out_path
+            while os.path.exists(out_path):
+                stem = Path(base_out).stem
+                out_path = os.path.join(extract_dir, f"{stem} ({counter}){audio_ext}")
+                counter += 1
+
+            with z.open(audio_name) as src_f, open(out_path, "wb") as dst_f:
+                shutil.copyfileobj(src_f, dst_f)
+
+            info = {
+                "path":    out_path,
+                "title":   meta.get("title", Path(out_path).stem),
+                "artist":  meta.get("artist", "—"),
+                "album":   meta.get("album", "—"),
+                "dur":     meta.get("dur", "—"),
+                "dur_sec": meta.get("dur_sec", 0),
+                "ext":     meta.get("ext", audio_ext.lstrip(".").upper()),
+                "size":    os.path.getsize(out_path),
+            }
+            return True, f"Imported: {info['title']}", info
+    except zipfile.BadZipFile:
+        return False, "Not a valid .ptm file (corrupt or wrong format).", {}
+    except Exception as e:
+        return False, f"Import failed:\n{e}", {}
+
+
 def fmt_size(b):
     if b < 1024:    return f"{b} B"
     if b < 1048576: return f"{b/1024:.1f} KB"
     return f"{b/1048576:.1f} MB"
 
+def _notify(title: str, body: str):
+    """Windows toast notification — winotify first, then PowerShell fallback."""
+    try:
+        import sys as _s
+        if _s.platform != "win32":
+            return
+
+        # ── winotify ──────────────────────────────────────────────────────
+        try:
+            from winotify import Notification, audio
+            import os as _o
+            base = getattr(_s, "_MEIPASS", _o.path.dirname(_o.path.abspath(__file__)))
+            icon_path = _o.path.abspath(_o.path.join(base, "PTMusic.png"))
+            # Use PowerShell's AUMID so Windows doesn't require Start Menu registration
+            aumid = ("{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}"
+                     "\\WindowsPowerShell\\v1.0\\powershell.exe")
+            toast = Notification(
+                app_id=aumid,
+                title=title,
+                msg=body,
+                icon=icon_path if _o.path.exists(icon_path) else "",
+                duration="short",
+            )
+            toast.set_audio(audio.Default, loop=False)
+            toast.show()
+            return
+        except Exception:
+            pass
+
+        # ── PowerShell raw fallback ───────────────────────────────────────
+        import subprocess
+        safe_title = title.replace("'", "").replace('"', "").replace("<", "").replace(">", "")
+        safe_body  = body.replace("'",  "").replace('"', "").replace("<", "").replace(">", "")
+        xml = (
+            '<toast><visual><binding template="ToastGeneric">'
+            '<text>' + safe_title + '</text>'
+            '<text>' + safe_body  + '</text>'
+            '</binding></visual></toast>'
+        )
+        ps = (
+            'Add-Type -AssemblyName System.Runtime.WindowsRuntime;'
+            '[void][Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime];'
+            '[void][Windows.Data.Xml.Dom.XmlDocument,Windows.Data.Xml.Dom.XmlDocument,ContentType=WindowsRuntime];'
+            '$xml=New-Object Windows.Data.Xml.Dom.XmlDocument;'
+            '$xml.LoadXml(\'' + xml + '\');'
+            '$t=[Windows.UI.Notifications.ToastNotification]::new($xml);'
+            '$m=[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(\'PTMusic\');'
+            '$m.Show($t)'
+        )
+        subprocess.Popen(
+            ["powershell", "-WindowStyle", "Hidden", "-NonInteractive", "-Command", ps],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=0x08000000
+        )
+    except Exception:
+        pass
 
 # ══════════════════════════════════════════════════════════════════════════
 #  WIDGETS
@@ -451,6 +900,192 @@ class FolderList(tk.Frame):
         self.lb.insert("end", "  (all drives)")
 
 
+
+# ══════════════════════════════════════════════════════════════════════════
+#  ALBUMS VIEW
+# ══════════════════════════════════════════════════════════════════════════
+
+class AlbumsView(tk.Frame):
+    """Scrollable grid of album cards, each showing art, title, artist, track count."""
+    CARD_W = 130
+    CARD_H = 160
+
+    def __init__(self, parent, app, **kw):
+        kw.setdefault("bg", A["glass"])
+        super().__init__(parent, **kw)
+        self.app = app
+        self._art_cache = {}   # (album, artist) -> PhotoImage | None
+        self._cards = []
+        self._albums = []      # list of dicts
+        self._build()
+
+    def _build(self):
+        # Search + sort bar
+        top = tk.Frame(self, bg=A["glass_mid"])
+        top.pack(fill="x", padx=0, pady=0)
+        tk.Label(top, text=_t("search_albums"), bg=A["glass_mid"],
+                 fg=A["text"], font=FONT_SMALL).pack(side="left", padx=(8,4), pady=6)
+        self._search_var = tk.StringVar()
+        self._search_var.trace_add("write", lambda *_: self.refresh(self.app.library))
+        ef = tk.Frame(top, bg=A["border"], padx=1, pady=1)
+        ef.pack(side="left", pady=6)
+        tk.Entry(ef, textvariable=self._search_var, bg=A["glass"], fg=A["text"],
+                 insertbackground=A["accent_hot"], relief="flat",
+                 font=FONT_SMALL, width=18).pack(ipady=2)
+
+        tk.Label(top, text=_t("sort"), bg=A["glass_mid"],
+                 fg=A["text_dim"], font=FONT_SMALL).pack(side="left", padx=(12,4))
+        self._sort_var = tk.StringVar(value="Name")   # fixed internal key
+        for key, label in (("Name", _t("sort_name")),
+                           ("Artist", _t("sort_artist")),
+                           ("Tracks", _t("sort_tracks"))):
+            tk.Radiobutton(top, text=label, variable=self._sort_var, value=key,
+                           command=lambda: self.refresh(self.app.library),
+                           bg=A["glass_mid"], fg=A["text"],
+                           activebackground=A["glass_mid"],
+                           selectcolor=A["glass_dark"],
+                           font=FONT_SMALL).pack(side="left", padx=2)
+
+        tk.Frame(self, bg=A["border"], height=1).pack(fill="x")
+
+        # Scrollable canvas for cards
+        self._canvas = tk.Canvas(self, bg=A["glass"], highlightthickness=0)
+        vsb = ttk.Scrollbar(self, orient="vertical", command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        self._canvas.pack(fill="both", expand=True)
+
+        self._inner = tk.Frame(self._canvas, bg=A["glass"])
+        self._canvas_win = self._canvas.create_window((0, 0), window=self._inner, anchor="nw")
+
+        self._inner.bind("<Configure>", lambda e: self._canvas.configure(
+            scrollregion=self._canvas.bbox("all")))
+        self._canvas.bind("<Configure>", self._on_canvas_resize)
+        self._canvas.bind("<MouseWheel>", lambda e: self._canvas.yview_scroll(
+            -1 if e.delta > 0 else 1, "units"))
+
+        tk.Label(self._inner, text="Scan your music library to see albums here.",
+                 bg=A["glass"], fg=A["text_dim"], font=FONT_SMALL).pack(pady=40)
+
+    def _on_canvas_resize(self, e):
+        self._canvas.itemconfig(self._canvas_win, width=e.width)
+
+    def refresh(self, library):
+        """Rebuild the album grid from the library list."""
+        # Group tracks by (album, artist)
+        groups = {}
+        for t in library:
+            key = (t["album"], t["artist"])
+            if key not in groups:
+                groups[key] = {"album": t["album"], "artist": t["artist"],
+                               "tracks": [], "path": t["path"]}
+            groups[key]["tracks"].append(t)
+
+        q = self._search_var.get().lower()
+        albums = [v for v in groups.values()
+                  if not q or q in v["album"].lower() or q in v["artist"].lower()]
+
+        sort_key = self._sort_var.get()
+        if sort_key == "Name":
+            albums.sort(key=lambda a: a["album"].lower())
+        elif sort_key == "Artist":
+            albums.sort(key=lambda a: a["artist"].lower())
+        else:
+            albums.sort(key=lambda a: len(a["tracks"]), reverse=True)
+
+        self._albums = albums
+        self._redraw()
+
+    def _redraw(self):
+        for w in self._inner.winfo_children():
+            w.destroy()
+        self._art_cache.clear()
+
+        if not self._albums:
+            tk.Label(self._inner, text=_t("no_albums"),
+                     bg=A["glass"], fg=A["text_dim"],
+                     font=FONT_SMALL, justify="center").pack(pady=40)
+            return
+
+        # Work out how many columns fit
+        canvas_w = self._canvas.winfo_width() or 800
+        cols = max(1, canvas_w // (self.CARD_W + 8))
+
+        for i, album in enumerate(self._albums):
+            col = i % cols
+            row = i // cols
+            self._make_card(self._inner, album, row, col)
+
+    def _make_card(self, parent, album, row, col):
+        card = tk.Frame(parent, bg=A["glass_mid"],
+                        width=self.CARD_W, height=self.CARD_H,
+                        highlightthickness=1, highlightbackground=A["border"],
+                        cursor="hand2")
+        card.grid(row=row, column=col, padx=5, pady=5, sticky="nw")
+        card.pack_propagate(False)
+        card.bind("<Button-1>", lambda e, a=album: self._play_album(a))
+
+        # Art
+        art_lbl = tk.Label(card, bg=A["glass_dark"], width=self.CARD_W,
+                            height=90, relief="flat")
+        art_lbl.pack(fill="x")
+        art_lbl.bind("<Button-1>", lambda e, a=album: self._play_album(a))
+
+        # Load art in background thread
+        key = (album["album"], album["artist"])
+        def _load(path=album["path"], lbl=art_lbl, k=key):
+            try:
+                img = _get_cover_art(path, size=self.CARD_W)
+                self._art_cache[k] = img
+                if img:
+                    lbl.after(0, lambda: lbl.config(image=img, text="", width=self.CARD_W, height=90))
+                else:
+                    lbl.after(0, lambda: lbl.config(text="♪", font=("Segoe UI", 28),
+                                                     fg=A["text_dim"]))
+            except Exception:
+                pass
+        threading.Thread(target=_load, daemon=True).start()
+
+        # Album name
+        name = album["album"][:18] + ("…" if len(album["album"]) > 18 else "")
+        nl = tk.Label(card, text=name, bg=A["glass_mid"], fg=A["text"],
+                      font=FONT_BOLD, anchor="w", wraplength=self.CARD_W-8)
+        nl.pack(fill="x", padx=4, pady=(4,0))
+        nl.bind("<Button-1>", lambda e, a=album: self._play_album(a))
+
+        # Artist
+        artist = album["artist"][:20] + ("…" if len(album["artist"]) > 20 else "")
+        al = tk.Label(card, text=artist, bg=A["glass_mid"], fg=A["text_dim"],
+                      font=FONT_SMALL, anchor="w")
+        al.pack(fill="x", padx=4)
+        al.bind("<Button-1>", lambda e, a=album: self._play_album(a))
+
+        # Track count
+        n = len(album["tracks"])
+        tl = tk.Label(card, text=f"{n} track{'s' if n!=1 else ''}",
+                      bg=A["glass_mid"], fg=A["accent_bright"],
+                      font=FONT_SMALL, anchor="w")
+        tl.pack(fill="x", padx=4)
+        tl.bind("<Button-1>", lambda e, a=album: self._play_album(a))
+
+        # Hover highlight
+        def _enter(e, c=card): c.config(highlightbackground=A["accent_hot"])
+        def _leave(e, c=card): c.config(highlightbackground=A["border"])
+        for w in [card, art_lbl, nl, al, tl]:
+            w.bind("<Enter>", _enter)
+            w.bind("<Leave>", _leave)
+
+    def _play_album(self, album):
+        """Queue all tracks in the album and start playing."""
+        app = self.app
+        tracks = sorted(album["tracks"],
+                        key=lambda t: t.get("title", "").lower())
+        app.queue.clear()
+        for t in tracks:
+            app.queue.append(t)
+        app._play_from_queue()
+
+
 # ══════════════════════════════════════════════════════════════════════════
 #  SETTINGS WINDOW
 # ══════════════════════════════════════════════════════════════════════════
@@ -460,7 +1095,7 @@ class SettingsWindow:
         self.app = app
         self.cfg = dict(app.cfg)
         win = tk.Toplevel(app.root)
-        win.title("PTMusic Settings")
+        win.title(_t("settings_title"))
         win.geometry("520x440")
         win.resizable(False, False)
         win.configure(bg=A["glass"])
@@ -476,8 +1111,8 @@ class SettingsWindow:
         win = self.win
         hdr = tk.Frame(win, bg=A["title_bar"], height=36)
         hdr.pack(fill="x"); hdr.pack_propagate(False)
-        tk.Label(hdr, text="⚙  Settings", bg=A["title_bar"],
-                 fg=A["accent_bright"], font=FONT_TITLE).pack(side="left", padx=12, pady=6)
+        tk.Label(hdr, text="⚙  " + _t("settings_title"), bg=A["title_bar"],
+                 fg=A["title_text"], font=FONT_TITLE).pack(side="left", padx=12, pady=6)
         tk.Frame(win, bg=A["tb_border"], height=1).pack(fill="x")
         tab_bar = tk.Frame(win, bg=A["glass_dark"])
         tab_bar.pack(fill="x")
@@ -487,21 +1122,28 @@ class SettingsWindow:
         tk.Frame(win, bg=A["border"], height=1).pack(fill="x")
         btn_bar = tk.Frame(win, bg=A["glass_dark"])
         btn_bar.pack(fill="x", padx=10, pady=6)
-        AeroBtn(btn_bar, text="Apply & Close", icon="✔", cmd=self._apply,
+        AeroBtn(btn_bar, text=_t("apply_close"), icon="✔", cmd=self._apply,
                 w=130, h=26, bg_override=A["glass_dark"]).pack(side="right", padx=(4,0))
-        AeroBtn(btn_bar, text="Cancel", icon="✖", cmd=self.win.destroy,
+        AeroBtn(btn_bar, text=_t("cancel"), icon="✖", cmd=self.win.destroy,
                 w=80, h=26, danger=True, bg_override=A["glass_dark"]).pack(side="right")
-        AeroBtn(btn_bar, text="Reset Defaults", icon="↺", cmd=self._reset,
+        AeroBtn(btn_bar, text=_t("reset_defaults"), icon="↺", cmd=self._reset,
                 w=120, h=26, bg_override=A["glass_dark"]).pack(side="left")
         self.tab_btns = {}; self.tabs = {}
-        for name in ("Appearance", "Playback", "Library", "About"):
-            btn = tk.Label(tab_bar, text=name, font=FONT_UI,
+        # Fixed internal keys, translated display labels
+        tab_defs = [
+            ("Appearance", _t("appearance")),
+            ("Playback",   _t("playback")),
+            ("Library",    _t("lib_tab")),
+            ("About",      _t("about")),
+        ]
+        for key, label in tab_defs:
+            btn = tk.Label(tab_bar, text=label, font=FONT_UI,
                            bg=A["glass_dark"], fg=A["text_dim"],
                            padx=14, pady=6, cursor="hand2")
             btn.pack(side="left")
-            btn.bind("<Button-1>", lambda e, n=name: self._show_tab(n))
-            self.tab_btns[name] = btn
-            self.tabs[name] = tk.Frame(self.content, bg=A["glass"])
+            btn.bind("<Button-1>", lambda e, n=key: self._show_tab(n))
+            self.tab_btns[key] = btn
+            self.tabs[key] = tk.Frame(self.content, bg=A["glass"])
         self._build_appearance(); self._build_playback()
         self._build_library_tab(); self._build_about()
         self._show_tab("Appearance")
@@ -520,7 +1162,7 @@ class SettingsWindow:
             tk.Label(r, text=label, bg=A["glass"], fg=A["text"],
                      font=FONT_UI, width=18, anchor="w").pack(side="left")
             return r
-        r = row("Theme:")
+        r = row(_t("theme"))
         self.theme_var = tk.StringVar(value=self.cfg["theme"])
         visible = list(PUBLIC_THEMES)
         if self.cfg.get("theme") == "Royale Noir" or self.cfg.get("royale_noir_unlocked"):
@@ -532,7 +1174,7 @@ class SettingsWindow:
         self.swatch_frame.pack(fill="x", pady=(0,8))
         self._draw_swatches(self.cfg["theme"])
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-        r = row("Font size:")
+        r = row(_t("font_size"))
         self.font_var = tk.IntVar(value=self.cfg["font_size"])
         for size in (8, 9, 10, 11, 12):
             tk.Radiobutton(r, text=str(size), variable=self.font_var, value=size,
@@ -548,7 +1190,7 @@ class SettingsWindow:
     def _draw_swatches(self, name):
         for w in self.swatch_frame.winfo_children(): w.destroy()
         palette = THEMES.get(name, {})
-        tk.Label(self.swatch_frame, text="Preview:", bg=A["glass"],
+        tk.Label(self.swatch_frame, text=_t("preview"), bg=A["glass"],
                  fg=A["text_dim"], font=FONT_SMALL).pack(side="left", padx=(0,6))
         for key in ["win_bg","glass","accent","accent_bright","btn","text",
                     "prog_fill","danger","green","sidebar"]:
@@ -565,7 +1207,7 @@ class SettingsWindow:
             tk.Label(r, text=label, bg=A["glass"], fg=A["text"],
                      font=FONT_UI, width=22, anchor="w").pack(side="left")
             return r
-        r = row("Progress update (ms):")
+        r = row(_t("tick_ms"))
         self.tick_var = tk.IntVar(value=self.cfg["tick_interval_ms"])
         tk.Scale(r, variable=self.tick_var, from_=100, to=1000, orient="horizontal",
                  length=200, resolution=50, bg=A["glass"], fg=A["text"],
@@ -574,7 +1216,7 @@ class SettingsWindow:
         tk.Label(r, textvariable=self.tick_var, bg=A["glass"],
                  fg=A["text_dim"], font=FONT_MONO, width=5).pack(side="left")
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-        r = row("Crossfade (ms):")
+        r = row(_t("crossfade_ms"))
         self.xfade_var = tk.IntVar(value=self.cfg["crossfade_ms"])
         tk.Scale(r, variable=self.xfade_var, from_=0, to=5000, orient="horizontal",
                  length=200, resolution=100, bg=A["glass"], fg=A["text"],
@@ -582,13 +1224,37 @@ class SettingsWindow:
                  activebackground=A["accent_hot"]).pack(side="left", padx=4)
         tk.Label(r, textvariable=self.xfade_var, bg=A["glass"],
                  fg=A["text_dim"], font=FONT_MONO, width=5).pack(side="left")
-        tk.Label(r, text="(0 = off)", bg=A["glass"],
+        tk.Label(r, text=_t("off"), bg=A["glass"],
                  fg=A["text_dim"], font=FONT_SMALL).pack(side="left", padx=4)
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-        r = row("Scan on startup:")
+        r = row(_t("scan_startup"))
         self.startup_var = tk.BooleanVar(value=self.cfg["scan_on_startup"])
         tk.Checkbutton(r, variable=self.startup_var, bg=A["glass"],
                        activebackground=A["glass"], selectcolor=A["glass_dark"]).pack(side="left")
+        tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
+        r = row(_t("notifications"))
+        self.notif_var = tk.BooleanVar(value=self.cfg.get("notifications", True))
+        tk.Checkbutton(r, variable=self.notif_var, bg=A["glass"],
+                       activebackground=A["glass"], selectcolor=A["glass_dark"]).pack(side="left")
+        tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
+        r = row("Minimize to tray:")
+        self.tray_var = tk.BooleanVar(value=self.cfg.get("minimize_to_tray", True))
+        tk.Checkbutton(r, variable=self.tray_var, bg=A["glass"],
+                       activebackground=A["glass"], selectcolor=A["glass_dark"]).pack(side="left")
+        if not PYSTRAY_AVAILABLE:
+            tk.Label(r, text="(requires: pip install pystray)", bg=A["glass"],
+                     fg=A["text_dim"], font=FONT_SMALL).pack(side="left", padx=4)
+        tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
+        r = row(_t("language"))
+        self.lang_var = tk.StringVar(value=self.cfg.get("language", "English"))
+        for lang in ("English", "Deutsch"):
+            tk.Radiobutton(r, text=lang, variable=self.lang_var, value=lang,
+                           bg=A["glass"], fg=A["text"],
+                           activebackground=A["glass"], activeforeground=A["accent"],
+                           selectcolor=A["glass_dark"],
+                           font=FONT_SMALL).pack(side="left", padx=6)
+        tk.Label(r, text=_t("lang_restart"), bg=A["glass"],
+                 fg=A["text_dim"], font=FONT_SMALL).pack(side="left", padx=4)
 
     def _build_library_tab(self):
         f = self.tabs["Library"]
@@ -597,16 +1263,16 @@ class SettingsWindow:
             tk.Label(r, text=label, bg=A["glass"], fg=A["text"],
                      font=FONT_UI, width=22, anchor="w").pack(side="left")
             return r
-        r = row("Confirm before clearing:")
+        r = row(_t("confirm_clear"))
         self.confirm_var = tk.BooleanVar(value=self.cfg["confirm_clear"])
         tk.Checkbutton(r, variable=self.confirm_var, bg=A["glass"],
                        activebackground=A["glass"], selectcolor=A["glass_dark"]).pack(side="left")
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-        r = row("Config file location:")
+        r = row(_t("cfg_location"))
         tk.Label(r, text=CONFIG_PATH, bg=A["glass"], fg=A["text_dim"],
                  font=FONT_SMALL, wraplength=320, justify="left").pack(side="left", padx=4)
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-        AeroBtn(f, text="Open config folder", icon="📁",
+        AeroBtn(f, text=_t("open_cfg_folder"), icon="📁",
                 cmd=self._open_cfg_folder, w=160, h=26,
                 bg_override=A["glass"]).pack(anchor="w", pady=4)
 
@@ -621,15 +1287,22 @@ class SettingsWindow:
         f = self.tabs["About"]
         tk.Label(f, text="PTMusic", bg=A["glass"],
                  fg=A["accent_bright"], font=("Segoe UI Light", 22)).pack(pady=(20,4))
-        tk.Label(f, text="Version 26.6.0", bg=A["glass"],
+        tk.Label(f, text=_t("version"), bg=A["glass"],
                  fg=A["text_dim"], font=FONT_UI).pack()
-        tk.Label(f, text="Phoni Technology  ·  2026", bg=A["glass"],
+        tk.Label(f, text=_t("publisher"), bg=A["glass"],
                  fg=A["text_dim"], font=FONT_SMALL).pack(pady=(2,16))
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x")
-        tk.Label(f, text="Supports MP3 · FLAC · WAV · M4A · MIDI · WMA\n"
-                          "Built with Python, Tkinter, pygame, mutagen, Pillow",
+        tk.Label(f, text=_t("supports"),
                  bg=A["glass"], fg=A["text_dim"],
                  font=FONT_SMALL, justify="center").pack(pady=12)
+        tk.Frame(f, bg=A["border"], height=1).pack(fill="x")
+        shortcuts = (
+            _t("shortcuts_text")
+        )
+        tk.Label(f, text=_t("shortcuts_title"), bg=A["glass"],
+                 fg=A["accent_bright"], font=FONT_BOLD).pack(pady=(10,4))
+        tk.Label(f, text=shortcuts, bg=A["glass"], fg=A["text_dim"],
+                 font=FONT_MONO, justify="left").pack(padx=12)
 
     def _apply(self):
         self.cfg["theme"]            = self.theme_var.get()
@@ -639,6 +1312,9 @@ class SettingsWindow:
         self.cfg["crossfade_ms"]     = self.xfade_var.get()
         self.cfg["scan_on_startup"]  = self.startup_var.get()
         self.cfg["confirm_clear"]    = self.confirm_var.get()
+        self.cfg["notifications"]    = self.notif_var.get()
+        self.cfg["minimize_to_tray"] = self.tray_var.get()
+        self.cfg["language"]         = self.lang_var.get()
         save_config(self.cfg)
         self.app.cfg = self.cfg
         PhoniPlayer._apply_theme(self.cfg["theme"])
@@ -652,7 +1328,7 @@ class SettingsWindow:
         self.win.destroy()
 
     def _reset(self):
-        if messagebox.askyesno("Reset", "Reset all settings to defaults?", parent=self.win):
+        if messagebox.askyesno(_t("reset_title"), _t("reset_confirm"), parent=self.win):
             self.cfg = dict(DEFAULTS)
             save_config(self.cfg)
             self.app.cfg = self.cfg
@@ -844,8 +1520,8 @@ class QueueWindow:
     def _build(self):
         hdr = tk.Frame(self.win, bg=A["title_bar"], height=36)
         hdr.pack(fill="x"); hdr.pack_propagate(False)
-        tk.Label(hdr, text="▶  Play Queue", bg=A["title_bar"],
-                 fg=A["accent_bright"], font=FONT_TITLE).pack(side="left", padx=12, pady=6)
+        tk.Label(hdr, text=_t("queue_title"), bg=A["title_bar"],
+                 fg=A["title_text"], font=FONT_TITLE).pack(side="left", padx=12, pady=6)
         tk.Frame(self.win, bg=A["tb_border"], height=1).pack(fill="x")
 
         # Queue listbox
@@ -864,15 +1540,15 @@ class QueueWindow:
         # Buttons
         btn_row = tk.Frame(self.win, bg=A["glass_dark"])
         btn_row.pack(fill="x", padx=6, pady=(0,6))
-        AeroBtn(btn_row, icon="▶", text="Play Next", w=100, h=26,
+        AeroBtn(btn_row, icon="▶", text=_t("play_next_btn"), w=100, h=26,
                 cmd=self._play_next, bg_override=A["glass_dark"]).pack(side="left", padx=3)
-        AeroBtn(btn_row, icon="↑", text="Move Up", w=90, h=26,
+        AeroBtn(btn_row, icon="↑", text=_t("move_up"), w=90, h=26,
                 cmd=self._move_up, bg_override=A["glass_dark"]).pack(side="left", padx=3)
-        AeroBtn(btn_row, icon="↓", text="Move Down", w=100, h=26,
+        AeroBtn(btn_row, icon="↓", text=_t("move_down"), w=100, h=26,
                 cmd=self._move_down, bg_override=A["glass_dark"]).pack(side="left", padx=3)
-        AeroBtn(btn_row, icon="✖", text="Remove", w=90, h=26, danger=True,
+        AeroBtn(btn_row, icon="✖", text=_t("remove_btn"), w=90, h=26, danger=True,
                 cmd=self._remove, bg_override=A["glass_dark"]).pack(side="left", padx=3)
-        AeroBtn(btn_row, icon="🗑", text="Clear", w=80, h=26, danger=True,
+        AeroBtn(btn_row, icon="🗑", text=_t("clear_btn"), w=80, h=26, danger=True,
                 cmd=self._clear, bg_override=A["glass_dark"]).pack(side="right", padx=3)
 
     def _refresh(self):
@@ -930,14 +1606,23 @@ class QueueWindow:
 # ══════════════════════════════════════════════════════════════════════════
 
 class PhoniPlayer:
-    def __init__(self):
+    def __init__(self, open_ptm_path: str = None):
+        self._pending_ptm = open_ptm_path   # .ptm file to import once UI is ready
         self.cfg = load_config()
+        global _CURRENT_LANG
+        _CURRENT_LANG = self.cfg.get("language", "English")
         self._apply_theme(self.cfg["theme"], rebuild=False)
 
         self.root = tk.Tk()
         _init_fonts()
         self.root.title("PTMusic")
-        self.root.geometry("1180x760")
+        # Restore saved window size and position
+        saved_geom = self.cfg.get("win_geometry", "1180x760")
+        saved_pos  = self.cfg.get("win_position", "")
+        if saved_pos:
+            self.root.geometry(f"{saved_geom}{saved_pos}")
+        else:
+            self.root.geometry(saved_geom)
         self.root.minsize(860, 580)
         self.root.configure(bg=A["win_bg"])
 
@@ -970,10 +1655,28 @@ class PhoniPlayer:
         self.mini_player  = None
         self.queue_win    = None
         self._cover_cache = {}   # path -> PhotoImage
+        self._tray_icon   = None   # pystray.Icon instance, once created
+        self._tray_thread = None
+        self._current_track = None  # dict of the currently playing track, for tray tooltip
 
         self._build()
         self._style()
-        self.root.after(250, self._startup_dialog if self.cfg.get("scan_on_startup", True) else lambda: None)
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        first_run_folder = self.cfg.pop("first_run_scan_folder", None)
+        if first_run_folder:
+            save_config(self.cfg)   # consume the key so this only runs once
+
+        if self._pending_ptm:
+            # A .ptm file was opened via double-click / file association —
+            # import it instead of the normal startup scan dialog.
+            self.root.after(250, lambda: self._import_ptm_file(self._pending_ptm))
+        elif first_run_folder and os.path.exists(first_run_folder):
+            # Installer bundled example music — auto-scan it on first launch
+            self.root.after(250, lambda: self._scan_first_run_folder(first_run_folder))
+        else:
+            self.root.after(250, self._startup_dialog if self.cfg.get("scan_on_startup", True) else lambda: None)
+
         self.root.mainloop()
 
     # ── THEME ─────────────────────────────────────────────────────────────
@@ -1003,6 +1706,8 @@ class PhoniPlayer:
             self.lib_count.config(text=f"({len(self.filtered or self.library)} tracks)")
             self._upd_stats()
         except Exception: pass
+        try: self.albums_view.refresh(self.library)
+        except Exception: pass
 
     # ── BUILD ─────────────────────────────────────────────────────────────
     def _build(self):
@@ -1030,14 +1735,43 @@ class PhoniPlayer:
             _raw = Image.open(_icon_path).resize((24,24), Image.LANCZOS)
             self._title_img = ImageTk.PhotoImage(_raw)
             tb.create_image(10,18, image=self._title_img, anchor="w")
-            tb.create_text(40,18, text="PTMusic", fill=A["accent_bright"],
+            tb.create_text(40,18, text="PTMusic", fill=A["title_text"],
                            font=FONT_TITLE, anchor="w")
         except Exception:
-            tb.create_text(12,18, text="PTMusic", fill=A["accent_bright"],
+            tb.create_text(12,18, text="PTMusic", fill=A["title_text"],
                            font=FONT_TITLE, anchor="w")
         tk.Frame(self.root, bg=A["tb_border"], height=1).pack(fill="x")
         tb.bind("<Button-1>", self._logo_click)
         self.root.bind_all("<Key>", self._konami)
+        self._register_shortcuts()
+
+    def _register_shortcuts(self):
+        r = self.root
+        # Ignore shortcuts when typing in an Entry widget
+        def _guard(fn):
+            def _wrapped(e):
+                if isinstance(e.widget, tk.Entry): return
+                fn(e)
+            return _wrapped
+
+        r.bind_all("<space>",          _guard(lambda e: self._playpause()))
+        r.bind_all("<n>",              _guard(lambda e: self._next()))
+        r.bind_all("<p>",              _guard(lambda e: self._prev()))
+        r.bind_all("<s>",              _guard(lambda e: self._stop()))
+        r.bind_all("<m>",              _guard(lambda e: self._toggle_mute()))
+        r.bind_all("<r>",              _guard(lambda e: self._toggle_repeat()))
+        r.bind_all("<h>",              _guard(lambda e: self._shuffle()))
+        # Skip ±5 seconds
+        r.bind_all("<Left>",           _guard(lambda e: self._seek_by(-5)))
+        r.bind_all("<Right>",          _guard(lambda e: self._seek_by(5)))
+        # Skip ±30 seconds
+        r.bind_all("<Shift-Left>",     _guard(lambda e: self._seek_by(-30)))
+        r.bind_all("<Shift-Right>",    _guard(lambda e: self._seek_by(30)))
+        # Volume ±5%
+        r.bind_all("<Up>",             _guard(lambda e: self._change_vol(5)))
+        r.bind_all("<Down>",           _guard(lambda e: self._change_vol(-5)))
+        # Queue selected
+        r.bind_all("<q>",              _guard(lambda e: self._queue_selected()))
 
     def _logo_click(self, e=None):
         self._logo_clicks += 1
@@ -1065,34 +1799,34 @@ class PhoniPlayer:
         bar = tk.Frame(self.root, bg=A["glass_dark"], height=36)
         bar.pack(fill="x"); bar.pack_propagate(False)
 
-        self.scan_btn = AeroBtn(bar, icon="🔍", text="Scan All Drives",
+        self.scan_btn = AeroBtn(bar, icon="🔍", text=_t("scan_all"),
                                 cmd=self._start_scan_all, w=140, h=26,
                                 bg_override=A["glass_dark"])
         self.scan_btn.pack(side="left", padx=(8,3), pady=5)
-        AeroBtn(bar, icon="📂", text="Scan Folders",
+        AeroBtn(bar, icon="📂", text=_t("scan_folders"),
                 cmd=self._start_scan_folders, w=130, h=26,
                 bg_override=A["glass_dark"]).pack(side="left", padx=3, pady=5)
-        self.stop_scan_btn = AeroBtn(bar, icon="⏹", text="Stop",
+        self.stop_scan_btn = AeroBtn(bar, icon="⏹", text=_t("stop"),
                                      cmd=self._stop_scan, w=70, h=26,
                                      danger=True, bg_override=A["glass_dark"])
         tk.Frame(bar, bg=A["border"], width=1).pack(side="left", fill="y", padx=8, pady=6)
-        AeroBtn(bar, icon="🗑", text="Clear", cmd=self._clear_library,
+        AeroBtn(bar, icon="🗑", text=_t("clear"), cmd=self._clear_library,
                 w=78, h=26, danger=True, bg_override=A["glass_dark"]
                 ).pack(side="left", padx=3, pady=5)
 
         # Right side
         tk.Frame(bar, bg=A["border"], width=1).pack(side="right", fill="y", padx=4, pady=6)
-        AeroBtn(bar, icon="⚙", text="Settings", cmd=self._open_settings,
+        AeroBtn(bar, icon="⚙", text=_t("settings"), cmd=self._open_settings,
                 w=90, h=26, bg_override=A["glass_dark"]
                 ).pack(side="right", padx=(0,4), pady=5)
-        AeroBtn(bar, icon="⬛", text="Mini", cmd=self._open_mini,
+        AeroBtn(bar, icon="⬛", text=_t("mini"), cmd=self._open_mini,
                 w=70, h=26, bg_override=A["glass_dark"]
                 ).pack(side="right", padx=3, pady=5)
-        AeroBtn(bar, icon="▶", text="Queue", cmd=self._open_queue,
+        AeroBtn(bar, icon="▶", text=_t("queue"), cmd=self._open_queue,
                 w=80, h=26, bg_override=A["glass_dark"]
                 ).pack(side="right", padx=3, pady=5)
 
-        tk.Label(bar, text="Search:", bg=A["glass_dark"],
+        tk.Label(bar, text=_t("search"), bg=A["glass_dark"],
                  fg=A["text_dim"], font=FONT_SMALL).pack(side="right", padx=(0,6))
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *_: self._filter())
@@ -1114,11 +1848,11 @@ class PhoniPlayer:
                      font=FONT_LABEL, anchor="w").pack(fill="x", padx=8, pady=(5,3))
             tk.Frame(sb, bg=A["border"], height=1).pack(fill="x")
 
-        sec("SCAN SOURCE")
+        sec(_t("scan_source"))
         src_frame = tk.Frame(sb, bg=A["sidebar"])
         src_frame.pack(fill="x", padx=8, pady=6)
         self.src_var = tk.StringVar(value="drives")
-        for val, lbl in [("drives","All Drives"), ("folders","Selected Folders")]:
+        for val, lbl in [("drives", _t("all_drives")), ("folders", _t("sel_folders"))]:
             tk.Radiobutton(src_frame, text=lbl, variable=self.src_var,
                            value=val, command=self._toggle_src,
                            bg=A["sidebar"], fg=A["text"],
@@ -1130,7 +1864,7 @@ class PhoniPlayer:
         self.folder_list.set_placeholder()
         tk.Frame(sb, bg=A["border"], height=1).pack(fill="x")
 
-        sec("FORMATS")
+        sec(_t("formats"))
         fmt_frame = tk.Frame(sb, bg=A["sidebar"])
         fmt_frame.pack(fill="x", padx=8, pady=6)
         self.fmt_vars = {}
@@ -1147,14 +1881,14 @@ class PhoniPlayer:
         tk.Frame(sb, bg=A["border"], height=1).pack(fill="x")
 
         # ── RECENTLY PLAYED ────────────────────────────────────────────────
-        sec("RECENTLY PLAYED")
+        sec(_t("recently_played"))
         self.recent_frame = tk.Frame(sb, bg=A["sidebar"])
         self.recent_frame.pack(fill="x", padx=4, pady=4)
         self._refresh_recent()
         tk.Frame(sb, bg=A["border"], height=1).pack(fill="x")
 
-        sec("LIBRARY INFO")
-        self.stats_lbl = tk.Label(sb, text="No files loaded",
+        sec(_t("library_info"))
+        self.stats_lbl = tk.Label(sb, text=_t("no_files"),
                                    bg=A["sidebar"], fg=A["text_dim"],
                                    font=FONT_SMALL, justify="left",
                                    anchor="nw", wraplength=190)
@@ -1163,7 +1897,7 @@ class PhoniPlayer:
     def _refresh_recent(self):
         for w in self.recent_frame.winfo_children(): w.destroy()
         if not self.recent:
-            tk.Label(self.recent_frame, text="Nothing yet",
+            tk.Label(self.recent_frame, text=_t("nothing_yet"),
                      bg=A["sidebar"], fg=A["text_dim"],
                      font=FONT_SMALL).pack(anchor="w", padx=4)
             return
@@ -1180,10 +1914,11 @@ class PhoniPlayer:
     def _play_recent(self, info):
         # Check it still exists on disk
         if not os.path.exists(info["path"]):
-            messagebox.showwarning("File Missing",
-                                   f"Cannot find:\n{info['path']}", parent=self.root)
+            messagebox.showwarning(_t("missing_file"),
+                                   _t("missing_msg", info["path"]), parent=self.root)
             return
-        # If it's in the library, locate and play it properly
+        # Prefer the full track dict from the library (has album/ext/dur/size);
+        # the recent-played entry only stores path/title/artist.
         match = next((t for t in self.library if t["path"] == info["path"]), None)
         if match:
             try:
@@ -1191,27 +1926,76 @@ class PhoniPlayer:
             except ValueError:
                 self.filtered = list(self.library)
                 self.cur_idx  = self.filtered.index(match)
-        self._play(info)
+            self._play(match)
+        else:
+            # Not in current library (e.g. library not scanned this session) —
+            # build a complete dict with sane defaults so _play() never KeyErrors.
+            full = {
+                "path":   info["path"],
+                "title":  info.get("title", Path(info["path"]).stem),
+                "artist": info.get("artist", "—"),
+                "album":  info.get("album", "—"),
+                "dur":    info.get("dur", "—"),
+                "dur_sec":info.get("dur_sec", 0),
+                "ext":    Path(info["path"]).suffix.lstrip(".").upper(),
+                "size":   0,
+            }
+            self._play(full)
 
     def _build_library(self, parent):
         lf = GlassPanel(parent)
         lf.pack(fill="both", expand=True, pady=(0,3))
-        hdr = tk.Frame(lf, bg=A["glass"]); hdr.pack(fill="x", padx=6, pady=(5,3))
-        tk.Label(hdr, text="LIBRARY", bg=A["glass"],
+
+        # ── Tab bar ──────────────────────────────────────────────────────
+        tab_bar = tk.Frame(lf, bg=A["glass_dark"])
+        tab_bar.pack(fill="x")
+        tk.Frame(lf, bg=A["border"], height=1).pack(fill="x")
+
+        self._lib_tab_frames = {}
+        self._lib_tab_btns   = {}
+
+        def _show_lib_tab(name):
+            for n, f in self._lib_tab_frames.items():
+                f.pack_forget()
+            for n, b in self._lib_tab_btns.items():
+                b.config(bg=A["glass_dark"], fg=A["text_dim"],
+                         font=FONT_SMALL, relief="flat", bd=0)
+            self._lib_tab_frames[name].pack(fill="both", expand=True)
+            self._lib_tab_btns[name].config(bg=A["glass_mid"],
+                                             fg=A["accent_bright"],
+                                             font=FONT_BOLD)
+        self._show_lib_tab = _show_lib_tab
+
+        # Use fixed internal keys, translated display labels
+        for key, icon in [("Library", "♩"), ("Albums", "■")]:
+            label = _t("library_tab") if key == "Library" else _t("albums_tab")
+            btn = tk.Label(tab_bar, text=f"{icon} {label}",
+                           bg=A["glass_dark"], fg=A["text_dim"],
+                           font=FONT_SMALL, padx=14, pady=6,
+                           cursor="hand2", relief="flat", bd=0)
+            btn.pack(side="left")
+            btn.bind("<Button-1>", lambda e, n=key: _show_lib_tab(n))
+            self._lib_tab_btns[key] = btn
+            frame = tk.Frame(lf, bg=A["glass"])
+            self._lib_tab_frames[key] = frame
+
+        # ── Library tab ───────────────────────────────────────────────────
+        lib_frame = self._lib_tab_frames["Library"]
+        hdr = tk.Frame(lib_frame, bg=A["glass"]); hdr.pack(fill="x", padx=6, pady=(5,3))
+        tk.Label(hdr, text=_t("library"), bg=A["glass"],
                  fg=A["accent_bright"], font=FONT_BOLD).pack(side="left")
         self.lib_count = tk.Label(hdr, text="", bg=A["glass"],
                                    fg=A["text_dim"], font=FONT_SMALL)
         self.lib_count.pack(side="left", padx=8)
-        # Queue selected track
-        AeroBtn(hdr, icon="+ Queue", cmd=self._queue_selected, w=90, h=22,
+        AeroBtn(hdr, icon=_t("queue_btn"), cmd=self._queue_selected, w=90, h=22,
                 bg_override=A["glass"]).pack(side="right", padx=4)
 
-        tv_frame = tk.Frame(lf, bg=A["glass"])
+        tv_frame = tk.Frame(lib_frame, bg=A["glass"])
         tv_frame.pack(fill="both", expand=True, padx=4, pady=(0,4))
         cols = ("title","artist","album","dur","ext","size","path")
         self.tree = ttk.Treeview(tv_frame, columns=cols, show="headings", selectmode="browse")
-        hdrs = [("title","Title",210),("artist","Artist",140),("album","Album",120),
-                ("dur","Dur.",58),("ext","Fmt",52),("size","Size",65),("path","Path",260)]
+        hdrs = [("title", _t("col_title"), 210),("artist", _t("col_artist"), 140),("album", _t("col_album"), 120),
+                ("dur", _t("col_dur"), 58),("ext", _t("col_fmt"), 52),("size", _t("col_size"), 65),("path", _t("col_path"), 260)]
         for col, lbl, w in hdrs:
             self.tree.heading(col, text=lbl, command=lambda c=col: self._sort(c))
             self.tree.column(col, width=w, minwidth=36, stretch=(col=="title"))
@@ -1223,15 +2007,21 @@ class PhoniPlayer:
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<Double-1>", self._dbl_click)
         self.tree.bind("<Return>",   self._dbl_click)
-        # Right-click context menu
         self.ctx = tk.Menu(self.root, tearoff=0, bg=A["glass"], fg=A["text"],
                            activebackground=A["sel"], activeforeground=A["accent_bright"])
-        self.ctx.add_command(label="▶  Play Now",        command=self._dbl_click)
-        self.ctx.add_command(label="+ Add to Queue",     command=self._queue_selected)
-        self.ctx.add_command(label="⏭  Play Next",       command=self._queue_next)
+        self.ctx.add_command(label=_t("ctx_play"),   command=self._dbl_click)
+        self.ctx.add_command(label=_t("ctx_queue"),  command=self._queue_selected)
+        self.ctx.add_command(label=_t("ctx_next"),   command=self._queue_next)
         self.ctx.add_separator()
-        self.ctx.add_command(label="📋 Copy Path",        command=self._copy_path)
+        self.ctx.add_command(label=_t("ctx_copy"),   command=self._copy_path)
+        self.ctx.add_command(label="📦 Export as .ptm…", command=self._export_ptm_selected)
         self.tree.bind("<Button-3>", self._show_ctx)
+
+        # ── Albums tab ────────────────────────────────────────────────────
+        self.albums_view = AlbumsView(self._lib_tab_frames["Albums"], app=self)
+        self.albums_view.pack(fill="both", expand=True)
+
+        _show_lib_tab("Library")
 
     def _build_player(self, parent):
         pf = GlassPanel(parent, height=160)
@@ -1252,7 +2042,7 @@ class PhoniPlayer:
                             fg=A["text_dim"], font=("Segoe UI", 12))
         self.dot.pack(side="left", padx=(0,6))
         info_col = tk.Frame(np, bg=A["glass"]); info_col.pack(side="left", fill="x", expand=True)
-        self.now_title = tk.Label(info_col, text="No track selected",
+        self.now_title = tk.Label(info_col, text=_t("no_track"),
                                    bg=A["glass"], fg=A["accent_bright"],
                                    font=FONT_NOW, anchor="w")
         self.now_title.pack(anchor="w")
@@ -1295,10 +2085,10 @@ class PhoniPlayer:
         sb = tk.Frame(self.root, bg=A["glass_dark"], height=22)
         sb.pack(fill="x", side="bottom"); sb.pack_propagate(False)
         tk.Frame(sb, bg=A["tb_border"], height=1).pack(fill="x", side="top")
-        self.status_var = tk.StringVar(value="Ready")
+        self.status_var = tk.StringVar(value=_t("ready"))
         tk.Label(sb, textvariable=self.status_var, bg=A["glass_dark"],
                  fg=A["text_dim"], font=FONT_SMALL, anchor="w").pack(side="left", padx=8)
-        self.ind_lbl = tk.Label(sb, text="◉ STOPPED", bg=A["glass_dark"],
+        self.ind_lbl = tk.Label(sb, text=_t("stopped"), bg=A["glass_dark"],
                                  fg=A["text_dim"], font=FONT_LABEL)
         self.ind_lbl.pack(side="right", padx=8)
 
@@ -1332,7 +2122,7 @@ class PhoniPlayer:
         info = next((t for t in self.library if t["path"] == path), None)
         if info:
             self.queue.append(info)
-            self.status_var.set(f"Added to queue: {info['title']}")
+            self.status_var.set(_t("added_queue", info["title"]))
             if self.queue_win and self.queue_win.win.winfo_exists():
                 self.queue_win._refresh()
 
@@ -1343,7 +2133,7 @@ class PhoniPlayer:
         info = next((t for t in self.library if t["path"] == path), None)
         if info:
             self.queue.appendleft(info)
-            self.status_var.set(f"Playing next: {info['title']}")
+            self.status_var.set(_t("playing_next", info["title"]))
             if self.queue_win and self.queue_win.win.winfo_exists():
                 self.queue_win._refresh()
 
@@ -1373,7 +2163,81 @@ class PhoniPlayer:
         if not sel: return
         self.root.clipboard_clear()
         self.root.clipboard_append(sel[0])
-        self.status_var.set(f"Copied: {sel[0]}")
+        self.status_var.set(_t("copied", sel[0]))
+
+    def _export_ptm_selected(self):
+        sel = self.tree.selection()
+        if not sel: return
+        path = sel[0]
+        info = next((t for t in self.library if t["path"] == path), None)
+        if not info:
+            return
+        default_name = "".join(c for c in info["title"]
+                               if c.isalnum() or c in " -_()[]").strip() or "track"
+        dest = filedialog.asksaveasfilename(
+            title="Export as .ptm",
+            defaultextension=PTM_EXT,
+            initialfile=default_name + PTM_EXT,
+            filetypes=[("PTMusic Track", f"*{PTM_EXT}"), ("All Files", "*.*")],
+            parent=self.root,
+        )
+        if not dest:
+            return
+        self.status_var.set(f"Exporting {info['title']}…")
+        self.root.update_idletasks()
+
+        def _do_export():
+            ok, msg = export_ptm(info, dest)
+            self.root.after(0, lambda: self._export_done(ok, msg, info["title"]))
+
+        threading.Thread(target=_do_export, daemon=True).start()
+
+    def _export_done(self, ok, msg, title):
+        if ok:
+            self.status_var.set(f"Exported: {title}")
+        else:
+            self.status_var.set("Export failed")
+            messagebox.showerror("Export Failed", msg, parent=self.root)
+
+    def _import_ptm_file(self, ptm_path: str):
+        """Import a .ptm file — extracts audio, adds to library, and plays it."""
+        if not os.path.exists(ptm_path):
+            messagebox.showerror("Import Failed", f"File not found:\n{ptm_path}",
+                                 parent=self.root)
+            return
+
+        # Extract into a dedicated PTMusic imports folder
+        imports_dir = os.path.join(os.path.expanduser("~"), "PTMusic Imports")
+        self.status_var.set(f"Importing {os.path.basename(ptm_path)}…")
+        self.root.update_idletasks()
+
+        def _do_import():
+            ok, msg, info = import_ptm(ptm_path, imports_dir)
+            self.root.after(0, lambda: self._import_done(ok, msg, info))
+
+        threading.Thread(target=_do_import, daemon=True).start()
+
+    def _import_done(self, ok, msg, info):
+        if not ok:
+            self.status_var.set("Import failed")
+            messagebox.showerror("Import Failed", msg, parent=self.root)
+            return
+        # Add to library if not already present
+        if not any(t["path"] == info["path"] for t in self.library):
+            self.library.append(info)
+            self._add_row(info)
+            self._upd_stats()
+            try: self.albums_view.refresh(self.library)
+            except Exception: pass
+        self.status_var.set(msg)
+        # Play it immediately
+        self.filtered = [t for t in self.library if self.tree.exists(t["path"])]
+        try:
+            self.cur_idx = next(i for i, t in enumerate(self.filtered)
+                                if t["path"] == info["path"])
+        except StopIteration:
+            self.cur_idx = -1
+        self._play(info)
 
     # ── SCAN SOURCE ────────────────────────────────────────────────────────
     def _toggle_src(self):
@@ -1381,11 +2245,127 @@ class PhoniPlayer:
         if not self._use_folders: self.folder_list.set_placeholder()
         else: self.folder_list.lb.delete(0, "end")
 
+    def _save_geometry(self):
+        try:
+            geo = self.root.geometry()
+            if '+' in geo:
+                plus = geo.index('+')
+                self.cfg["win_geometry"] = geo[:plus]
+                self.cfg["win_position"] = geo[plus:]
+            else:
+                self.cfg["win_geometry"] = geo
+                self.cfg["win_position"] = ""
+            save_config(self.cfg)
+        except Exception:
+            pass
+
+    def _on_close(self):
+        """Minimize to tray if enabled and available, otherwise exit fully."""
+        self._save_geometry()
+        if self.cfg.get("minimize_to_tray", True) and PYSTRAY_AVAILABLE:
+            self._minimize_to_tray()
+        else:
+            self._quit_app()
+
+    def _minimize_to_tray(self):
+        self.root.withdraw()  # hide window, keep process alive
+        if self._tray_icon is None:
+            self._start_tray_icon()
+        else:
+            self._update_tray_menu()
+
+    def _restore_from_tray(self):
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+    def _quit_app(self):
+        """Fully exit — stop tray icon, stop playback, destroy window."""
+        try:
+            if PYGAME_AVAILABLE:
+                pygame.mixer.music.stop()
+        except Exception:
+            pass
+        if self._tray_icon is not None:
+            try:
+                self._tray_icon.stop()
+            except Exception:
+                pass
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
+        os._exit(0)   # hard-stop any lingering non-daemon threads
+
+    # ── SYSTEM TRAY ──────────────────────────────────────────────────────
+    def _tray_image(self):
+        """Load PTMusic.png for the tray icon."""
+        try:
+            base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+            path = os.path.join(base, "PTMusic.png")
+            return Image.open(path)
+        except Exception:
+            # Fallback: simple generated icon
+            img = Image.new("RGBA", (64, 64), (30, 90, 160, 255))
+            return img
+
+    def _tray_track_label(self):
+        if self._current_track:
+            t = self._current_track
+            title  = t.get("title", "—")
+            artist = t.get("artist", "—")
+            state  = "Paused" if self.paused else ("Playing" if self.playing else "Stopped")
+            return f"{state}: {title} — {artist}"
+        return "PTMusic — Nothing playing"
+
+    def _build_tray_menu(self):
+        import pystray
+        return pystray.Menu(
+            pystray.MenuItem(self._tray_track_label(), None, enabled=False),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Play / Pause", lambda: self.root.after(0, self._playpause)),
+            pystray.MenuItem("Next Track",   lambda: self.root.after(0, self._next)),
+            pystray.MenuItem("Previous Track", lambda: self.root.after(0, self._prev)),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Show PTMusic", lambda: self.root.after(0, self._restore_from_tray), default=True),
+            pystray.MenuItem("Exit", lambda: self.root.after(0, self._quit_app)),
+        )
+
+    def _start_tray_icon(self):
+        import pystray
+        self._tray_icon = pystray.Icon(
+            "PTMusic",
+            icon=self._tray_image(),
+            title=self._tray_track_label(),
+            menu=self._build_tray_menu(),
+        )
+        self._tray_thread = threading.Thread(target=self._tray_icon.run, daemon=True)
+        self._tray_thread.start()
+
+    def _update_tray_menu(self):
+        """Refresh tray tooltip and menu text (call after track changes)."""
+        if self._tray_icon is None:
+            return
+        try:
+            self._tray_icon.title = self._tray_track_label()
+            self._tray_icon.menu  = self._build_tray_menu()
+        except Exception:
+            pass
+
     def _startup_dialog(self):
-        if messagebox.askyesno("Welcome",
-                                "Welcome to PTMusic!\n\nWould you like to scan all drives?\n"
-                                "You can also scan specific folders later.", parent=self.root):
+        if messagebox.askyesno(_t("welcome_title"),
+                                _t("welcome_msg"), parent=self.root):
             self._start_scan_all()
+
+    def _scan_first_run_folder(self, folder: str):
+        """Auto-scan a folder bundled by the installer (e.g. example music)
+        on first launch, without prompting the user."""
+        self.src_var.set("folders"); self._use_folders = True
+        self.folder_list.folders = [folder]
+        self.folder_list.lb.delete(0, "end")
+        self.folder_list.lb.insert("end", folder)
+        self.status_var.set(f"Scanning bundled example music…")
+        self._run_scan([folder])
 
     def _start_scan_all(self):
         self.src_var.set("drives"); self._use_folders = False
@@ -1408,7 +2388,7 @@ class PhoniPlayer:
             self.scan_stop.set(); self.scan_th.join(timeout=2)
         self.scan_stop.clear()
         self._clear_library(confirm=False)
-        self.status_var.set(f"Scanning {len(paths)} location(s)…")
+        self.status_var.set(_t("scanning", len(paths)))
         self.stop_scan_btn.pack(side="left", padx=3, pady=5)
         def run():
             scan_paths(paths, callback=self._on_found, stop_event=self.scan_stop)
@@ -1423,7 +2403,7 @@ class PhoniPlayer:
         self.root.after(0, lambda i=info: self._add_row(i))
         n = len(self.library)
         if n % 20 == 0:
-            self.root.after(0, lambda x=n: self.status_var.set(f"Found {x} tracks…"))
+            self.root.after(0, lambda x=n: self.status_var.set(_t("found_tracks", x)))
 
     def _add_row(self, info):
         if self.tree.exists(info["path"]): return
@@ -1435,16 +2415,18 @@ class PhoniPlayer:
 
     def _scan_done(self):
         n = len(self.library)
-        self.status_var.set(f"Scan complete — {n} track{'s' if n!=1 else ''} found")
+        self.status_var.set(_t("scan_complete", n, "s" if n!=1 else ""))
         self.stop_scan_btn.pack_forget(); self._upd_stats(); self._filter()
+        try: self.albums_view.refresh(self.library)
+        except Exception: pass
 
     def _clear_library(self, confirm=True):
         if confirm and self.cfg.get("confirm_clear", True) and not messagebox.askyesno(
-                "Clear Library", "Remove all tracks?", parent=self.root):
+                _t("clear_title"), _t("clear_msg"), parent=self.root):
             return
         self._stop(); self.library.clear(); self.filtered.clear()
         self.tree.delete(*self.tree.get_children())
-        self._upd_stats(); self.status_var.set("Library cleared")
+        self._upd_stats(); self.status_var.set(_t("cleared"))
 
     def _filter(self, *_):
         q = self.search_var.get().lower()
@@ -1473,7 +2455,7 @@ class PhoniPlayer:
         n = len(self.library)
         fmts = {}
         for t in self.library: fmts[t["ext"]] = fmts.get(t["ext"],0)+1
-        lines = [f"{n} track{'s' if n!=1 else ''}"]
+        lines = [_t("tracks_label", n, "s" if n!=1 else "")]
         for k, v in sorted(fmts.items()): lines.append(f"  {k}: {v}")
         self.stats_lbl.config(text="\n".join(lines) if n else "No files loaded")
         self.lib_count.config(text=f"({len(self.filtered or self.library)} tracks)")
@@ -1513,10 +2495,17 @@ class PhoniPlayer:
         # Cover art
         self._load_cover(info["path"])
 
-        # Recently played
+        # Recently played — store full info so it plays correctly even
+        # before the library has been re-scanned in a future session
         self.recent = [r for r in self.recent if r["path"] != info["path"]]
-        self.recent.append({"path": info["path"], "title": info["title"],
-                            "artist": info["artist"]})
+        self.recent.append({
+            "path":   info["path"],
+            "title":  info["title"],
+            "artist": info["artist"],
+            "album":  info.get("album", "—"),
+            "dur":    info.get("dur", "—"),
+            "ext":    info.get("ext", ""),
+        })
         save_recent(self.recent)
         try: self._refresh_recent()
         except: pass
@@ -1526,10 +2515,17 @@ class PhoniPlayer:
         self.dur_lbl.config(text=info["dur"] if info["dur"]!="—" else "—")
         self.btn_play.icon = "⏸"; self.btn_play._draw()
         self.dot.config(fg=A["green"])
-        self.ind_lbl.config(text="◉ PLAYING", fg=A["green"])
-        self.status_var.set(f"Playing: {info['title']}")
+        self.ind_lbl.config(text=_t("playing"), fg=A["green"])
+        self.status_var.set(_t("playing_status", info["title"]))
         if self.tree.exists(info["path"]):
             self.tree.selection_set(info["path"]); self.tree.see(info["path"])
+        if self.cfg.get("notifications", True):
+            threading.Thread(
+                target=_notify,
+                args=(info["title"], f"{info['artist']}  ·  {info['album']}"),
+                daemon=True).start()
+        self._current_track = info
+        self._update_tray_menu()
         self._tick()
 
     def _load_cover(self, path):
@@ -1592,6 +2588,46 @@ class PhoniPlayer:
             try: pygame.mixer.music.set_pos(target); self._seek_offset = target
             except: pass
 
+    def _seek_by(self, seconds: float):
+        """Seek forward/backward by N seconds."""
+        if not (PYGAME_AVAILABLE and self.playing): return
+        raw = pygame.mixer.music.get_pos() / 1000.0
+        if raw < 0: return
+        target = max(0.0, min(self._seek_offset + raw + seconds, self._tlen or 9999))
+        try:
+            pygame.mixer.music.play(start=target)
+            self._seek_offset = target
+        except:
+            try:
+                pygame.mixer.music.set_pos(target)
+                self._seek_offset = target
+            except: pass
+
+    def _change_vol(self, delta: int):
+        """Change volume by delta percent (-100 to +100)."""
+        new_vol = max(0, min(100, int(self._vol * 100) + delta))
+        self._vol = new_vol / 100.0
+        if PYGAME_AVAILABLE: pygame.mixer.music.set_volume(self._vol)
+        try: self.vol_scale.set(new_vol)
+        except: pass
+        self.status_var.set(_t("volume", new_vol))
+
+    def _toggle_mute(self):
+        """Toggle mute on/off, remembering previous volume."""
+        if not hasattr(self, '_pre_mute_vol'):
+            self._pre_mute_vol = None
+        if self._pre_mute_vol is None:
+            self._pre_mute_vol = self._vol
+            self._change_vol(-100)
+            self.status_var.set(_t("muted"))
+        else:
+            self._vol = self._pre_mute_vol
+            self._pre_mute_vol = None
+            if PYGAME_AVAILABLE: pygame.mixer.music.set_volume(self._vol)
+            try: self.vol_scale.set(int(self._vol * 100))
+            except: pass
+            self.status_var.set(f"Unmuted — Volume: {int(self._vol*100)}%")
+
     def _playpause(self):
         if not PYGAME_AVAILABLE: return
         if not self.playing:
@@ -1602,25 +2638,28 @@ class PhoniPlayer:
             pygame.mixer.music.unpause(); self.paused = False
             self.btn_play.icon = "⏸"; self.btn_play._draw()
             self.dot.config(fg=A["green"])
-            self.ind_lbl.config(text="◉ PLAYING", fg=A["green"]); self._tick()
+            self.ind_lbl.config(text=_t("playing"), fg=A["green"]); self._tick()
         else:
             pygame.mixer.music.pause(); self.paused = True
             self.btn_play.icon = "▶"; self.btn_play._draw()
             self.dot.config(fg=A["accent"])
-            self.ind_lbl.config(text="❚❚ PAUSED", fg=A["accent"])
-            self.status_var.set("Paused")
+            self.ind_lbl.config(text=_t("paused"), fg=A["accent"])
+            self.status_var.set(_t("paused"))
+        self._update_tray_menu()
 
     def _stop(self):
         if PYGAME_AVAILABLE: pygame.mixer.music.stop()
         self.playing = False; self.paused = False
         self.btn_play.icon = "▶"; self.btn_play._draw()
         self.dot.config(fg=A["text_dim"])
-        self.ind_lbl.config(text="◉ STOPPED", fg=A["text_dim"])
-        self.now_title.config(text="No track selected"); self.now_sub.config(text="")
+        self.ind_lbl.config(text=_t("stopped"), fg=A["text_dim"])
+        self.now_title.config(text=_t("no_track")); self.now_sub.config(text="")
         self.time_lbl.config(text="0:00"); self.prog.delete("all")
         self.cover_lbl.config(image="", text="♪", font=("Segoe UI",20),
                                fg=A["text_dim"], width=4, height=2)
-        self.status_var.set("Stopped")
+        self.status_var.set(_t("stopped"))
+        self._current_track = None
+        self._update_tray_menu()
 
     def _next(self):
         if self.queue:
@@ -1643,11 +2682,11 @@ class PhoniPlayer:
                                   values=(info["title"], info["artist"], info["album"],
                                           info["dur"], info["ext"],
                                           fmt_size(info["size"]), info["path"]))
-            self.status_var.set("Library shuffled")
+            self.status_var.set(_t("shuffled"))
 
     def _toggle_repeat(self):
         self._repeat = not self._repeat
-        self.status_var.set("Repeat: " + ("ON" if self._repeat else "OFF"))
+        self.status_var.set(_t("repeat_on") if self._repeat else _t("repeat_off"))
 
     def _set_vol(self, val):
         self._vol = int(val)/100.0
@@ -1682,13 +2721,26 @@ if __name__ == "__main__":
         print("mutagen :", MUTAGEN_AVAILABLE)
         print("pillow  :", PIL_AVAILABLE)
         print("-" * 60)
+
+        # Check if launched with a .ptm file (double-click / file association)
+        ptm_arg = None
+        for arg in sys.argv[1:]:
+            if arg.lower().endswith(PTM_EXT):
+                ptm_arg = arg
+                print("Opening .ptm file:", ptm_arg)
+                break
+
         try:
-            PhoniPlayer()
+            PhoniPlayer(open_ptm_path=ptm_arg)
+        except SystemExit:
+            pass  # normal exit
         except Exception:
             print("\n=== CRASH ===")
             traceback.print_exc()
             print("=============")
-            input("\nPress Enter to exit...")
+            # Only pause for input if we actually have a console
+            if sys.__stdout__ is not None:
+                input("\nPress Enter to exit...")
         finally:
             sys.stdout = sys.__stdout__
             sys.stderr = sys.__stderr__
