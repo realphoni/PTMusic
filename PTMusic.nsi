@@ -1,5 +1,5 @@
 !define APP_NAME      "PTMusic"
-!define APP_VERSION   "26.6.8"
+!define APP_VERSION   "26.9.4"
 !define APP_PUBLISHER "Phoni Technology"
 !define APP_URL       "https://www.youtube.com/@Phoni1RBX"
 !define APP_EXE       "PTMusic.exe"
@@ -37,7 +37,7 @@ RequestExecutionLevel admin
 ;---- Install section ----
 Section "PTMusic" SecMain
     SetOutPath "$INSTDIR"
-    File "dist\PTMusic.exe"
+    File "dist\26.9.x\26.9.4\PTMusic.exe"
     File "PTMusic.png"
     File "PTMusic.ico"
     IfFileExists "$EXEDIR\Montserrat-SemiBold.ttf" 0 +2

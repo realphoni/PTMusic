@@ -10,6 +10,7 @@ import shutil
 import threading
 import platform
 import random
+import time
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from pathlib import Path
@@ -218,7 +219,7 @@ _STRINGS = {
         "scan_startup":     "Scan on startup:",
         "notifications":    "Track notifications:",
         "notif_hint":       "(requires winotify, plyer, or win10toast)",
-        "language":         "Language / Sprache:",
+        "language":         "Language:",
         "lang_restart":     "(restart to apply)",
         "confirm_clear":    "Confirm before clearing:",
         "cfg_location":     "Config file location:",
@@ -226,7 +227,7 @@ _STRINGS = {
         "reset_confirm":    "Reset all settings to defaults?",
         "reset_title":      "Reset",
         # About
-        "version":          "Version 26.9.3",
+        "version":          "Version 26.9.4",
         "publisher":        "Phoni Technology  ·  2026",
         "supports":         "Supports MP3 · FLAC · WAV · M4A · MIDI · WMA\nBuilt with Python, Tkinter, pygame, mutagen, Pillow",
         "shortcuts_title":  "Keyboard Shortcuts",
@@ -246,6 +247,49 @@ _STRINGS = {
         "clear_btn":        "Clear",
         "tracks_found":     "{} track{} found",
         "tracks_label":     "{} track{}",
+        "select_folder":    "Select Folder to Scan",
+        "albums_hint":      "Scan your music library to see albums here.",
+        "minimize_tray":    "Minimize to tray:",
+        "tray_hint":        "(requires: pip install pystray)",
+        "export_ptm":       "Export as .ptm",
+        "ptmusic_track":    "PTMusic Track",
+        "all_files":        "All Files",
+        "exporting":        "Exporting {}…",
+        "exported":         "Exported: {}",
+        "export_failed":    "Export failed",
+        "export_error":     "Export failed:\n{}",
+        "export_destination": "Exported to:\n{}",
+        "importing":        "Importing {}…",
+        "imported":         "Imported: {}",
+        "import_failed":    "Import failed",
+        "import_error":     "Import failed:\n{}",
+        "invalid_ptm":      "Not a valid .ptm file (missing metadata or audio).",
+        "corrupt_ptm":      "Not a valid .ptm file (corrupt or wrong format).",
+        "source_missing":   "Source file not found:\n{}",
+        "nothing_playing":  "Nothing playing",
+        "state_paused":     "Paused",
+        "state_playing":    "Playing",
+        "state_stopped":    "Stopped",
+        "play_pause":       "Play / Pause",
+        "next_track":       "Next Track",
+        "previous_track":   "Previous Track",
+        "show_app":         "Show PTMusic",
+        "exit":             "Exit",
+        "scanning_samples": "Scanning bundled example music…",
+        "missing_status":   "Missing: {}",
+        "error_status":     "Error: {}",
+        "sleep":            "Sleep",
+        "sleep_off":        "Turn off",
+        "sleep_minutes":    "{} minutes",
+        "sleep_hour":       "1 hour",
+        "sleep_set":        "Sleep timer set for {} minutes",
+        "sleep_cancelled":  "Sleep timer turned off",
+        "sleep_remaining":  "{}m left",
+        "sleep_finished":   "Sleep timer finished — playback stopped",
+        "royale_unlocked":  "👑 Royale Noir Unlocked",
+        "royale_message":   "You found the secret theme!\n\nRoyale Noir is now available in Settings.",
+        "egg_body":         "hello there!\n\nwelcome here. its cool isnt it?\ndont you just miss more themes?",
+        "egg_close":        "leaved",
     },
     "Deutsch": {
         "scan_all":         "Alle Laufwerke scannen",
@@ -324,14 +368,14 @@ _STRINGS = {
         "scan_startup":     "Beim Start scannen:",
         "notifications":    "Titelbenachrichtigungen:",
         "notif_hint":       "(benötigt winotify, plyer oder win10toast)",
-        "language":         "Language / Sprache:",
+        "language":         "Sprache:",
         "lang_restart":     "(Neustart erforderlich)",
         "confirm_clear":    "Vor dem Leeren bestätigen:",
         "cfg_location":     "Konfigurationsdatei:",
         "open_cfg_folder":  "Konfigurationsordner öffnen",
         "reset_confirm":    "Alle Einstellungen zurücksetzen?",
         "reset_title":      "Zurücksetzen",
-        "version":          "Version 26.9.3",
+        "version":          "Version 26.9.4",
         "publisher":        "Phoni Technology  ·  2026",
         "supports":         "Unterstützt MP3 · FLAC · WAV · M4A · MIDI · WMA\nErstellt mit Python, Tkinter, pygame, mutagen, Pillow",
         "shortcuts_title":  "Tastenkürzel",
@@ -350,6 +394,196 @@ _STRINGS = {
         "clear_btn":        "Leeren",
         "tracks_found":     "{} Titel{} gefunden",
         "tracks_label":     "{} Titel{}",
+        "select_folder":    "Ordner zum Scannen auswählen",
+        "albums_hint":      "Scannen Sie Ihre Musikbibliothek, um hier Alben zu sehen.",
+        "minimize_tray":    "In den Infobereich minimieren:",
+        "tray_hint":        "(benötigt: pip install pystray)",
+        "export_ptm":       "Als .ptm exportieren",
+        "ptmusic_track":    "PTMusic-Titel",
+        "all_files":        "Alle Dateien",
+        "exporting":        "{} wird exportiert…",
+        "exported":         "Exportiert: {}",
+        "export_failed":    "Export fehlgeschlagen",
+        "export_error":     "Export fehlgeschlagen:\n{}",
+        "export_destination": "Exportiert nach:\n{}",
+        "importing":        "{} wird importiert…",
+        "imported":         "Importiert: {}",
+        "import_failed":    "Import fehlgeschlagen",
+        "import_error":     "Import fehlgeschlagen:\n{}",
+        "invalid_ptm":      "Ungültige .ptm-Datei (Metadaten oder Audiodaten fehlen).",
+        "corrupt_ptm":      "Ungültige .ptm-Datei (beschädigt oder falsches Format).",
+        "source_missing":   "Quelldatei nicht gefunden:\n{}",
+        "nothing_playing":  "Keine Wiedergabe",
+        "state_paused":     "Pausiert",
+        "state_playing":    "Spielt",
+        "state_stopped":    "Gestoppt",
+        "play_pause":       "Abspielen / Pause",
+        "next_track":       "Nächster Titel",
+        "previous_track":   "Vorheriger Titel",
+        "show_app":         "PTMusic anzeigen",
+        "exit":             "Beenden",
+        "scanning_samples": "Mitgelieferte Beispielmusik wird gescannt…",
+        "missing_status":   "Fehlt: {}",
+        "error_status":     "Fehler: {}",
+        "sleep":            "Timer",
+        "sleep_off":        "Ausschalten",
+        "sleep_minutes":    "{} Minuten",
+        "sleep_hour":       "1 Stunde",
+        "sleep_set":        "Sleeptimer auf {} Minuten eingestellt",
+        "sleep_cancelled":  "Sleeptimer ausgeschaltet",
+        "sleep_remaining":  "Noch {}m",
+        "sleep_finished":   "Sleeptimer abgelaufen — Wiedergabe gestoppt",
+        "royale_unlocked":  "👑 Royale Noir freigeschaltet",
+        "royale_message":   "Sie haben das geheime Design gefunden!\n\nRoyale Noir ist jetzt in den Einstellungen verfügbar.",
+        "egg_body":         "hallo!\n\nwillkommen hier. cool, oder?\nvermisst du nicht auch mehr designs?",
+        "egg_close":        "tschüss",
+    },
+    "Español": {
+        "scan_all":         "Buscar en unidades",
+        "scan_folders":     "Buscar en carpetas",
+        "stop":             "Detener",
+        "clear":            "Vaciar",
+        "settings":         "Ajustes",
+        "mini":             "Mini",
+        "queue":            "Cola",
+        "search":           "Buscar:",
+        "scan_source":      "ORIGEN DE BÚSQUEDA",
+        "all_drives":       "Todas las unidades",
+        "sel_folders":      "Carpetas seleccionadas",
+        "formats":          "FORMATOS",
+        "recently_played":  "RECIENTES",
+        "nothing_yet":      "Todavía no hay canciones",
+        "library_info":     "INFO. DE BIBLIOTECA",
+        "no_files":         "No hay archivos cargados",
+        "library":          "BIBLIOTECA",
+        "add_folder":       "Añadir carpeta",
+        "remove":           "Eliminar",
+        "queue_btn":        "+ Cola",
+        "col_title":        "Título",
+        "col_artist":       "Artista",
+        "col_album":        "Álbum",
+        "col_dur":          "Dur.",
+        "col_fmt":          "Formato",
+        "col_size":         "Tamaño",
+        "col_path":         "Ruta",
+        "albums_tab":       "Álbumes",
+        "library_tab":      "Biblioteca",
+        "search_albums":    "Buscar álbumes:",
+        "sort":             "Ordenar:",
+        "sort_name":        "Nombre",
+        "sort_artist":      "Artista",
+        "sort_tracks":      "Pistas",
+        "no_albums":        "No se encontraron álbumes.\nBusque música en su biblioteca primero.",
+        "no_track":         "Ninguna pista seleccionada",
+        "ctx_play":         "▶  Reproducir ahora",
+        "ctx_queue":        "+ Añadir a la cola",
+        "ctx_next":         "⏭  Reproducir después",
+        "ctx_copy":         "📋 Copiar ruta",
+        "ready":            "Listo",
+        "stopped":          "◉ DETENIDO",
+        "playing":          "◉ REPRODUCIENDO",
+        "paused":           "❚❚ EN PAUSA",
+        "repeat_on":        "Repetición: ACTIVADA",
+        "repeat_off":       "Repetición: DESACTIVADA",
+        "shuffled":         "Biblioteca mezclada",
+        "cleared":          "Biblioteca vaciada",
+        "muted":            "Silenciado",
+        "unmuted":          "Sonido activado — Volumen: {}%",
+        "volume":           "Volumen: {}%",
+        "scan_complete":    "Búsqueda completada — {} pista{}",
+        "found_tracks":     "Se encontraron {} pistas…",
+        "scanning":         "Buscando en {} ubicación(es)…",
+        "playing_status":   "Reproduciendo: {}",
+        "copied":           "Copiado: {}",
+        "added_queue":      "Añadido a la cola: {}",
+        "playing_next":     "A continuación: {}",
+        "settings_title":   "Ajustes de PTMusic",
+        "appearance":       "Apariencia",
+        "playback":         "Reproducción",
+        "lib_tab":          "Biblioteca",
+        "about":            "Acerca de",
+        "apply_close":      "Aplicar y cerrar",
+        "cancel":           "Cancelar",
+        "reset_defaults":   "Restablecer",
+        "theme":            "Tema:",
+        "preview":          "Vista previa:",
+        "font_size":        "Tamaño de letra:",
+        "show_path_col":    "Mostrar columna de ruta:",
+        "tick_ms":          "Actualizar progreso (ms):",
+        "crossfade_ms":     "Fundido cruzado (ms):",
+        "off":              "(0 = desactivado)",
+        "scan_startup":     "Buscar al iniciar:",
+        "notifications":    "Notificaciones de pistas:",
+        "notif_hint":       "(requiere winotify, plyer o win10toast)",
+        "language":         "Idioma:",
+        "lang_restart":     "(reinicie para aplicar)",
+        "confirm_clear":    "Confirmar antes de vaciar:",
+        "cfg_location":     "Archivo de configuración:",
+        "open_cfg_folder":  "Abrir carpeta de configuración",
+        "reset_confirm":    "¿Restablecer todos los ajustes predeterminados?",
+        "reset_title":      "Restablecer",
+        "version":          "Versión 26.9.4",
+        "publisher":        "Phoni Technology  ·  2026",
+        "supports":         "Admite MP3 · FLAC · WAV · M4A · MIDI · WMA\nCreado con Python, Tkinter, pygame, mutagen y Pillow",
+        "shortcuts_title":  "Atajos de teclado",
+        "shortcuts_text":   "Espacio  Reproducir/Pausa   N  Siguiente pista\nP  Pista anterior           S  Detener\n←/→  Saltar ±5s             Mayús+←/→  ±30s\n↑/↓  Volumen ±5%            M  Silenciar\nR  Repetir                  H  Mezclar    Q  Añadir a cola",
+        "welcome_title":    "Bienvenido",
+        "welcome_msg":      "¡Bienvenido a PTMusic!\n\n¿Desea buscar música en todas las unidades?\nTambién puede elegir carpetas más adelante.",
+        "clear_title":      "Vaciar biblioteca",
+        "clear_msg":        "¿Eliminar todas las pistas?",
+        "missing_file":     "Archivo no encontrado",
+        "missing_msg":      "No se encuentra:\n{}",
+        "queue_title":      "▶  Cola de reproducción",
+        "play_next_btn":    "Reproducir después",
+        "move_up":          "Subir",
+        "move_down":        "Bajar",
+        "remove_btn":       "Eliminar",
+        "clear_btn":        "Vaciar",
+        "tracks_found":     "{} pista{}",
+        "tracks_label":     "{} pista{}",
+        "select_folder":    "Seleccione una carpeta para buscar música",
+        "albums_hint":      "Busque música en su biblioteca para ver los álbumes aquí.",
+        "minimize_tray":    "Minimizar a la bandeja:",
+        "tray_hint":        "(requiere: pip install pystray)",
+        "export_ptm":       "Exportar como .ptm",
+        "ptmusic_track":    "Pista de PTMusic",
+        "all_files":        "Todos los archivos",
+        "exporting":        "Exportando {}…",
+        "exported":         "Exportado: {}",
+        "export_failed":    "Error al exportar",
+        "export_error":     "Error al exportar:\n{}",
+        "export_destination": "Exportado a:\n{}",
+        "importing":        "Importando {}…",
+        "imported":         "Importado: {}",
+        "import_failed":    "Error al importar",
+        "import_error":     "Error al importar:\n{}",
+        "invalid_ptm":      "Archivo .ptm no válido (faltan metadatos o audio).",
+        "corrupt_ptm":      "Archivo .ptm no válido (dañado o formato incorrecto).",
+        "source_missing":   "No se encontró el archivo de origen:\n{}",
+        "nothing_playing":  "Sin reproducción",
+        "state_paused":     "En pausa",
+        "state_playing":    "Reproduciendo",
+        "state_stopped":    "Detenido",
+        "play_pause":       "Reproducir / Pausa",
+        "next_track":       "Siguiente pista",
+        "previous_track":   "Pista anterior",
+        "show_app":         "Mostrar PTMusic",
+        "exit":             "Salir",
+        "scanning_samples": "Buscando música de ejemplo incluida…",
+        "missing_status":   "No se encuentra: {}",
+        "error_status":     "Error: {}",
+        "sleep":            "Temporizador",
+        "sleep_off":        "Desactivar",
+        "sleep_minutes":    "{} minutos",
+        "sleep_hour":       "1 hora",
+        "sleep_set":        "Temporizador configurado para {} minutos",
+        "sleep_cancelled":  "Temporizador desactivado",
+        "sleep_remaining":  "Quedan {}m",
+        "sleep_finished":   "Temporizador finalizado — reproducción detenida",
+        "royale_unlocked":  "👑 Royale Noir desbloqueado",
+        "royale_message":   "¡Encontró el tema secreto!\n\nRoyale Noir ya está disponible en Ajustes.",
+        "egg_body":         "¡hola!\n\nbienvenido. está genial, ¿verdad?\n¿no echas de menos más temas?",
+        "egg_close":        "adiós",
     },
 }
 
@@ -363,6 +597,9 @@ def _t(key: str, *args) -> str:
         try: s = s.format(*args)
         except Exception: pass
     return s
+
+def _track_count(n):
+    return _t("tracks_label", n, "s" if n != 1 and _CURRENT_LANG != "Deutsch" else "")
 
 _CURRENT_LANG = "English"   # updated from config at startup
 
@@ -664,7 +901,7 @@ def export_ptm(info: dict, dest_path: str) -> tuple[bool, str]:
     import zipfile
     src_path = info["path"]
     if not os.path.exists(src_path):
-        return False, f"Source file not found:\n{src_path}"
+        return False, _t("source_missing", src_path)
     try:
         meta = {
             "ptm_version": 1,
@@ -685,9 +922,9 @@ def export_ptm(info: dict, dest_path: str) -> tuple[bool, str]:
             z.write(src_path, audio_name)
             if cover:
                 z.writestr("cover.img", cover)
-        return True, f"Exported to:\n{dest_path}"
+        return True, _t("export_destination", dest_path)
     except Exception as e:
-        return False, f"Export failed:\n{e}"
+        return False, _t("export_error", e)
 
 
 def import_ptm(ptm_path: str, extract_dir: str) -> tuple[bool, str, dict]:
@@ -700,7 +937,7 @@ def import_ptm(ptm_path: str, extract_dir: str) -> tuple[bool, str, dict]:
             meta_name = next((n for n in names if n == "metadata.json"), None)
             audio_name = next((n for n in names if n.startswith("audio.")), None)
             if not meta_name or not audio_name:
-                return False, "Not a valid .ptm file (missing metadata or audio).", {}
+                return False, _t("invalid_ptm"), {}
 
             meta = json.loads(z.read(meta_name).decode("utf-8"))
             audio_ext = Path(audio_name).suffix
@@ -731,11 +968,11 @@ def import_ptm(ptm_path: str, extract_dir: str) -> tuple[bool, str, dict]:
                 "ext":     meta.get("ext", audio_ext.lstrip(".").upper()),
                 "size":    os.path.getsize(out_path),
             }
-            return True, f"Imported: {info['title']}", info
+            return True, _t("imported", info["title"]), info
     except zipfile.BadZipFile:
-        return False, "Not a valid .ptm file (corrupt or wrong format).", {}
+        return False, _t("corrupt_ptm"), {}
     except Exception as e:
-        return False, f"Import failed:\n{e}", {}
+        return False, _t("import_error", e), {}
 
 
 def fmt_size(b):
@@ -874,13 +1111,13 @@ class FolderList(tk.Frame):
         vsb.pack(side="right", fill="y")
         btns = tk.Frame(self, bg=A["sidebar"])
         btns.pack(fill="x", pady=(3,0))
-        AeroBtn(btns, icon="＋", text="Add Folder", cmd=self._add,
+        AeroBtn(btns, icon="＋", text=_t("add_folder"), cmd=self._add,
                 w=120, h=24, bg_override=A["sidebar"]).pack(side="left", padx=(0,3))
-        AeroBtn(btns, icon="−", text="Remove", cmd=self._remove,
+        AeroBtn(btns, icon="−", text=_t("remove"), cmd=self._remove,
                 w=88, h=24, danger=True, bg_override=A["sidebar"]).pack(side="left")
 
     def _add(self):
-        path = filedialog.askdirectory(title="Select Folder to Scan")
+        path = filedialog.askdirectory(title=_t("select_folder"))
         if path and path not in self.folders:
             self.folders.append(path)
             self.lb.insert("end", path)
@@ -897,7 +1134,7 @@ class FolderList(tk.Frame):
 
     def set_placeholder(self):
         self.lb.delete(0, "end")
-        self.lb.insert("end", "  (all drives)")
+        self.lb.insert("end", "  (" + _t("all_drives") + ")")
 
 
 
@@ -964,7 +1201,7 @@ class AlbumsView(tk.Frame):
         self._canvas.bind("<MouseWheel>", lambda e: self._canvas.yview_scroll(
             -1 if e.delta > 0 else 1, "units"))
 
-        tk.Label(self._inner, text="Scan your music library to see albums here.",
+        tk.Label(self._inner, text=_t("albums_hint"),
                  bg=A["glass"], fg=A["text_dim"], font=FONT_SMALL).pack(pady=40)
 
     def _on_canvas_resize(self, e):
@@ -1062,7 +1299,7 @@ class AlbumsView(tk.Frame):
 
         # Track count
         n = len(album["tracks"])
-        tl = tk.Label(card, text=f"{n} track{'s' if n!=1 else ''}",
+        tl = tk.Label(card, text=_track_count(n),
                       bg=A["glass_mid"], fg=A["accent_bright"],
                       font=FONT_SMALL, anchor="w")
         tl.pack(fill="x", padx=4)
@@ -1160,7 +1397,8 @@ class SettingsWindow:
         def row(label):
             r = tk.Frame(f, bg=A["glass"]); r.pack(fill="x", pady=5)
             tk.Label(r, text=label, bg=A["glass"], fg=A["text"],
-                     font=FONT_UI, width=18, anchor="w").pack(side="left")
+                     font=FONT_UI, width=18, anchor="w", wraplength=140,
+                     justify="left").pack(side="left")
             return r
         r = row(_t("theme"))
         self.theme_var = tk.StringVar(value=self.cfg["theme"])
@@ -1182,7 +1420,7 @@ class SettingsWindow:
                            selectcolor=A["glass_dark"], font=FONT_SMALL
                            ).pack(side="left", padx=3)
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-        r = row("Show path column:")
+        r = row(_t("show_path_col"))
         self.path_col_var = tk.BooleanVar(value=self.cfg["show_path_col"])
         tk.Checkbutton(r, variable=self.path_col_var, bg=A["glass"],
                        activebackground=A["glass"], selectcolor=A["glass_dark"]).pack(side="left")
@@ -1205,7 +1443,8 @@ class SettingsWindow:
         def row(label):
             r = tk.Frame(f, bg=A["glass"]); r.pack(fill="x", pady=6)
             tk.Label(r, text=label, bg=A["glass"], fg=A["text"],
-                     font=FONT_UI, width=22, anchor="w").pack(side="left")
+                     font=FONT_UI, width=22, anchor="w", wraplength=170,
+                     justify="left").pack(side="left")
             return r
         r = row(_t("tick_ms"))
         self.tick_var = tk.IntVar(value=self.cfg["tick_interval_ms"])
@@ -1225,7 +1464,8 @@ class SettingsWindow:
         tk.Label(r, textvariable=self.xfade_var, bg=A["glass"],
                  fg=A["text_dim"], font=FONT_MONO, width=5).pack(side="left")
         tk.Label(r, text=_t("off"), bg=A["glass"],
-                 fg=A["text_dim"], font=FONT_SMALL).pack(side="left", padx=4)
+                 fg=A["text_dim"], font=FONT_SMALL, wraplength=50,
+                 justify="left").pack(side="left", padx=4)
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
         r = row(_t("scan_startup"))
         self.startup_var = tk.BooleanVar(value=self.cfg["scan_on_startup"])
@@ -1237,22 +1477,19 @@ class SettingsWindow:
         tk.Checkbutton(r, variable=self.notif_var, bg=A["glass"],
                        activebackground=A["glass"], selectcolor=A["glass_dark"]).pack(side="left")
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
-        r = row("Minimize to tray:")
+        r = row(_t("minimize_tray"))
         self.tray_var = tk.BooleanVar(value=self.cfg.get("minimize_to_tray", True))
         tk.Checkbutton(r, variable=self.tray_var, bg=A["glass"],
                        activebackground=A["glass"], selectcolor=A["glass_dark"]).pack(side="left")
         if not PYSTRAY_AVAILABLE:
-            tk.Label(r, text="(requires: pip install pystray)", bg=A["glass"],
+            tk.Label(r, text=_t("tray_hint"), bg=A["glass"],
                      fg=A["text_dim"], font=FONT_SMALL).pack(side="left", padx=4)
         tk.Frame(f, bg=A["border"], height=1).pack(fill="x", pady=4)
         r = row(_t("language"))
         self.lang_var = tk.StringVar(value=self.cfg.get("language", "English"))
-        for lang in ("English", "Deutsch"):
-            tk.Radiobutton(r, text=lang, variable=self.lang_var, value=lang,
-                           bg=A["glass"], fg=A["text"],
-                           activebackground=A["glass"], activeforeground=A["accent"],
-                           selectcolor=A["glass_dark"],
-                           font=FONT_SMALL).pack(side="left", padx=6)
+        language_menu = ttk.OptionMenu(r, self.lang_var, self.lang_var.get(), *_STRINGS)
+        language_menu.config(width=10)
+        language_menu.pack(side="left", padx=4)
         tk.Label(r, text=_t("lang_restart"), bg=A["glass"],
                  fg=A["text_dim"], font=FONT_SMALL).pack(side="left", padx=4)
 
@@ -1261,7 +1498,8 @@ class SettingsWindow:
         def row(label):
             r = tk.Frame(f, bg=A["glass"]); r.pack(fill="x", pady=6)
             tk.Label(r, text=label, bg=A["glass"], fg=A["text"],
-                     font=FONT_UI, width=22, anchor="w").pack(side="left")
+                     font=FONT_UI, width=22, anchor="w", wraplength=170,
+                     justify="left").pack(side="left")
             return r
         r = row(_t("confirm_clear"))
         self.confirm_var = tk.BooleanVar(value=self.cfg["confirm_clear"])
@@ -1361,14 +1599,13 @@ class EasterEggWindow:
                                    font=("Segoe UI", 13, "bold"))
         self.title_lbl.pack(pady=(24,4))
         tk.Label(self.win,
-                 text="hello there!\n\nwelcome here. its cool isnt it?\n"
-                      "dont you just miss more themes?",
+                 text=_t("egg_body"),
                  bg="#0a0a0a", fg="#cccccc",
                  font=("Segoe UI", 9), justify="center").pack(pady=8)
         self.note_lbl = tk.Label(self.win, text="♪  ♫  ♩  ♬  ♭",
                                   bg="#0a0a0a", fg="#ffffff", font=("Segoe UI", 18))
         self.note_lbl.pack(pady=8)
-        tk.Button(self.win, text="leaved",
+        tk.Button(self.win, text=_t("egg_close"),
                   command=self.win.destroy, bg="#1a1a1a", fg="#aaaaaa",
                   relief="flat", font=("Segoe UI", 9),
                   activebackground="#333333", activeforeground="#ffffff",
@@ -1433,7 +1670,7 @@ class MiniPlayer:
         # Track info
         info = tk.Frame(body, bg=A["glass_dark"])
         info.pack(side="left", fill="both", expand=True)
-        self.mini_title = tk.Label(info, text="Nothing playing",
+        self.mini_title = tk.Label(info, text=_t("nothing_playing"),
                                     bg=A["glass_dark"], fg=A["accent_bright"],
                                     font=FONT_BOLD, anchor="w")
         self.mini_title.pack(fill="x")
@@ -1466,7 +1703,7 @@ class MiniPlayer:
         try:
             app = self.app
             # Title / sub
-            title = app.now_title.cget("text") if hasattr(app, 'now_title') else "Nothing playing"
+            title = app.now_title.cget("text") if hasattr(app, 'now_title') else _t("nothing_playing")
             sub   = app.now_sub.cget("text")   if hasattr(app, 'now_sub')   else ""
             self.mini_title.config(text=title[:45] + ("…" if len(title)>45 else ""))
             self.mini_sub.config(text=sub[:55] + ("…" if len(sub)>55 else ""))
@@ -1652,6 +1889,8 @@ class PhoniPlayer:
         self._logo_clicks = 0
         self._konami_buf  = ""
         self._repeat      = False
+        self._sleep_deadline = None
+        self._sleep_after = None
         self.mini_player  = None
         self.queue_win    = None
         self._cover_cache = {}   # path -> PhotoImage
@@ -1703,7 +1942,7 @@ class PhoniPlayer:
                                  values=(info["title"], info["artist"], info["album"],
                                          info["dur"], info["ext"],
                                          fmt_size(info["size"]), info["path"]))
-            self.lib_count.config(text=f"({len(self.filtered or self.library)} tracks)")
+            self.lib_count.config(text=f"({_track_count(len(self.filtered or self.library))})")
             self._upd_stats()
         except Exception: pass
         try: self.albums_view.refresh(self.library)
@@ -1791,8 +2030,8 @@ class PhoniPlayer:
             save_config(self.cfg)
             PhoniPlayer._apply_theme("Royale Noir")
             self._rebuild_ui()
-            messagebox.showinfo("👑 Royale Noir Unlocked",
-                                "You found the secret theme!\n\nRoyale Noir is now available in Settings.",
+            messagebox.showinfo(_t("royale_unlocked"),
+                                _t("royale_message"),
                                 parent=self.root)
 
     def _build_toolbar(self):
@@ -2014,7 +2253,7 @@ class PhoniPlayer:
         self.ctx.add_command(label=_t("ctx_next"),   command=self._queue_next)
         self.ctx.add_separator()
         self.ctx.add_command(label=_t("ctx_copy"),   command=self._copy_path)
-        self.ctx.add_command(label="📦 Export as .ptm…", command=self._export_ptm_selected)
+        self.ctx.add_command(label="📦 " + _t("export_ptm") + "…", command=self._export_ptm_selected)
         self.tree.bind("<Button-3>", self._show_ctx)
 
         # ── Albums tab ────────────────────────────────────────────────────
@@ -2069,9 +2308,13 @@ class PhoniPlayer:
         self.btn_next = AeroBtn(ctrl, icon="⏭", cmd=self._next, w=44, h=32, bg_override=A["glass"])
         self.btn_shuf = AeroBtn(ctrl, icon="🔀", cmd=self._shuffle, w=44, h=28, bg_override=A["glass"])
         self.btn_rep  = AeroBtn(ctrl, icon="🔁", cmd=self._toggle_repeat, w=44, h=28, bg_override=A["glass"])
+        self.btn_sleep = AeroBtn(ctrl, icon="⏲", text=_t("sleep"),
+                                 cmd=self._show_sleep_menu, w=82, h=28,
+                                 bg_override=A["glass"])
         for b in (self.btn_prev, self.btn_play, self.btn_stop,
-                  self.btn_next, self.btn_shuf, self.btn_rep):
+                  self.btn_next, self.btn_shuf, self.btn_rep, self.btn_sleep):
             b.pack(side="left", padx=2)
+        self._update_sleep_button()
         vf = tk.Frame(ctrl, bg=A["glass"]); vf.pack(side="left", padx=(14,0))
         tk.Label(vf, text="🔊", bg=A["glass"], fg=A["text_dim"],
                  font=("Segoe UI",9)).pack(side="left")
@@ -2175,15 +2418,15 @@ class PhoniPlayer:
         default_name = "".join(c for c in info["title"]
                                if c.isalnum() or c in " -_()[]").strip() or "track"
         dest = filedialog.asksaveasfilename(
-            title="Export as .ptm",
+            title=_t("export_ptm"),
             defaultextension=PTM_EXT,
             initialfile=default_name + PTM_EXT,
-            filetypes=[("PTMusic Track", f"*{PTM_EXT}"), ("All Files", "*.*")],
+            filetypes=[(_t("ptmusic_track"), f"*{PTM_EXT}"), (_t("all_files"), "*.*")],
             parent=self.root,
         )
         if not dest:
             return
-        self.status_var.set(f"Exporting {info['title']}…")
+        self.status_var.set(_t("exporting", info["title"]))
         self.root.update_idletasks()
 
         def _do_export():
@@ -2194,21 +2437,21 @@ class PhoniPlayer:
 
     def _export_done(self, ok, msg, title):
         if ok:
-            self.status_var.set(f"Exported: {title}")
+            self.status_var.set(_t("exported", title))
         else:
-            self.status_var.set("Export failed")
-            messagebox.showerror("Export Failed", msg, parent=self.root)
+            self.status_var.set(_t("export_failed"))
+            messagebox.showerror(_t("export_failed"), msg, parent=self.root)
 
     def _import_ptm_file(self, ptm_path: str):
         """Import a .ptm file — extracts audio, adds to library, and plays it."""
         if not os.path.exists(ptm_path):
-            messagebox.showerror("Import Failed", f"File not found:\n{ptm_path}",
+            messagebox.showerror(_t("import_failed"), _t("missing_msg", ptm_path),
                                  parent=self.root)
             return
 
         # Extract into a dedicated PTMusic imports folder
         imports_dir = os.path.join(os.path.expanduser("~"), "PTMusic Imports")
-        self.status_var.set(f"Importing {os.path.basename(ptm_path)}…")
+        self.status_var.set(_t("importing", os.path.basename(ptm_path)))
         self.root.update_idletasks()
 
         def _do_import():
@@ -2219,8 +2462,8 @@ class PhoniPlayer:
 
     def _import_done(self, ok, msg, info):
         if not ok:
-            self.status_var.set("Import failed")
-            messagebox.showerror("Import Failed", msg, parent=self.root)
+            self.status_var.set(_t("import_failed"))
+            messagebox.showerror(_t("import_failed"), msg, parent=self.root)
             return
         # Add to library if not already present
         if not any(t["path"] == info["path"] for t in self.library):
@@ -2281,6 +2524,10 @@ class PhoniPlayer:
 
     def _quit_app(self):
         """Fully exit — stop tray icon, stop playback, destroy window."""
+        if self._sleep_after is not None:
+            try: self.root.after_cancel(self._sleep_after)
+            except Exception: pass
+            self._sleep_after = None
         try:
             if PYGAME_AVAILABLE:
                 pygame.mixer.music.stop()
@@ -2314,21 +2561,21 @@ class PhoniPlayer:
             t = self._current_track
             title  = t.get("title", "—")
             artist = t.get("artist", "—")
-            state  = "Paused" if self.paused else ("Playing" if self.playing else "Stopped")
+            state = _t("state_paused" if self.paused else "state_playing" if self.playing else "state_stopped")
             return f"{state}: {title} — {artist}"
-        return "PTMusic — Nothing playing"
+        return "PTMusic — " + _t("nothing_playing")
 
     def _build_tray_menu(self):
         import pystray
         return pystray.Menu(
             pystray.MenuItem(self._tray_track_label(), None, enabled=False),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Play / Pause", lambda: self.root.after(0, self._playpause)),
-            pystray.MenuItem("Next Track",   lambda: self.root.after(0, self._next)),
-            pystray.MenuItem("Previous Track", lambda: self.root.after(0, self._prev)),
+            pystray.MenuItem(_t("play_pause"), lambda: self.root.after(0, self._playpause)),
+            pystray.MenuItem(_t("next_track"), lambda: self.root.after(0, self._next)),
+            pystray.MenuItem(_t("previous_track"), lambda: self.root.after(0, self._prev)),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Show PTMusic", lambda: self.root.after(0, self._restore_from_tray), default=True),
-            pystray.MenuItem("Exit", lambda: self.root.after(0, self._quit_app)),
+            pystray.MenuItem(_t("show_app"), lambda: self.root.after(0, self._restore_from_tray), default=True),
+            pystray.MenuItem(_t("exit"), lambda: self.root.after(0, self._quit_app)),
         )
 
     def _start_tray_icon(self):
@@ -2364,7 +2611,7 @@ class PhoniPlayer:
         self.folder_list.folders = [folder]
         self.folder_list.lb.delete(0, "end")
         self.folder_list.lb.insert("end", folder)
-        self.status_var.set(f"Scanning bundled example music…")
+        self.status_var.set(_t("scanning_samples"))
         self._run_scan([folder])
 
     def _start_scan_all(self):
@@ -2375,7 +2622,7 @@ class PhoniPlayer:
         self.src_var.set("folders"); self._use_folders = True
         folders = self.folder_list.get_folders()
         if not folders:
-            path = filedialog.askdirectory(title="Select Folder to Scan")
+            path = filedialog.askdirectory(title=_t("select_folder"))
             if not path: return
             self.folder_list.folders.append(path)
             self.folder_list.lb.delete(0,"end")
@@ -2415,7 +2662,7 @@ class PhoniPlayer:
 
     def _scan_done(self):
         n = len(self.library)
-        self.status_var.set(_t("scan_complete", n, "s" if n!=1 else ""))
+        self.status_var.set(_t("scan_complete", n, "s" if n != 1 and _CURRENT_LANG != "Deutsch" else ""))
         self.stop_scan_btn.pack_forget(); self._upd_stats(); self._filter()
         try: self.albums_view.refresh(self.library)
         except Exception: pass
@@ -2444,7 +2691,7 @@ class PhoniPlayer:
                               values=(info["title"], info["artist"], info["album"],
                                       info["dur"], info["ext"],
                                       fmt_size(info["size"]), info["path"]))
-        self.lib_count.config(text=f"({len(self.filtered)} tracks)")
+        self.lib_count.config(text=f"({_track_count(len(self.filtered))})")
 
     def _sort(self, col):
         items = [(self.tree.set(k, col), k) for k in self.tree.get_children()]
@@ -2455,10 +2702,10 @@ class PhoniPlayer:
         n = len(self.library)
         fmts = {}
         for t in self.library: fmts[t["ext"]] = fmts.get(t["ext"],0)+1
-        lines = [_t("tracks_label", n, "s" if n!=1 else "")]
+        lines = [_track_count(n)]
         for k, v in sorted(fmts.items()): lines.append(f"  {k}: {v}")
-        self.stats_lbl.config(text="\n".join(lines) if n else "No files loaded")
-        self.lib_count.config(text=f"({len(self.filtered or self.library)} tracks)")
+        self.stats_lbl.config(text="\n".join(lines) if n else _t("no_files"))
+        self.lib_count.config(text=f"({_track_count(len(self.filtered or self.library))})")
 
     def _dbl_click(self, e=None):
         sel = self.tree.selection()
@@ -2475,7 +2722,7 @@ class PhoniPlayer:
             messagebox.showerror("pygame missing", "pip install pygame", parent=self.root)
             return
         if not os.path.exists(info["path"]):
-            self.status_var.set(f"Missing: {info['path']}"); return
+            self.status_var.set(_t("missing_status", info["path"])); return
         try:
             pygame.mixer.music.load(info["path"])
             pygame.mixer.music.set_volume(self._vol)
@@ -2483,7 +2730,7 @@ class PhoniPlayer:
             self.playing = True; self.paused = False
             self._seek_offset = 0.0
         except Exception as e:
-            self.status_var.set(f"Error: {e}"); return
+            self.status_var.set(_t("error_status", e)); return
 
         self._tlen = 0
         if MUTAGEN_AVAILABLE:
@@ -2626,7 +2873,7 @@ class PhoniPlayer:
             if PYGAME_AVAILABLE: pygame.mixer.music.set_volume(self._vol)
             try: self.vol_scale.set(int(self._vol * 100))
             except: pass
-            self.status_var.set(f"Unmuted — Volume: {int(self._vol*100)}%")
+            self.status_var.set(_t("unmuted", int(self._vol*100)))
 
     def _playpause(self):
         if not PYGAME_AVAILABLE: return
@@ -2687,6 +2934,55 @@ class PhoniPlayer:
     def _toggle_repeat(self):
         self._repeat = not self._repeat
         self.status_var.set(_t("repeat_on") if self._repeat else _t("repeat_off"))
+
+    def _show_sleep_menu(self):
+        menu = tk.Menu(self.root, tearoff=0, bg=A["glass"], fg=A["text"],
+                       activebackground=A["sel"], activeforeground=A["accent_bright"])
+        for minutes in (0, 15, 30, 60, 90):
+            label = _t("sleep_off") if not minutes else _t("sleep_hour") if minutes == 60 else _t("sleep_minutes", minutes)
+            menu.add_command(label=label,
+                             command=lambda value=minutes: self._set_sleep_timer(value))
+        try:
+            menu.tk_popup(self.btn_sleep.winfo_rootx(),
+                          self.btn_sleep.winfo_rooty() - 145)
+        finally:
+            menu.grab_release()
+
+    def _set_sleep_timer(self, minutes):
+        if self._sleep_after is not None:
+            try: self.root.after_cancel(self._sleep_after)
+            except Exception: pass
+            self._sleep_after = None
+        self._sleep_deadline = time.monotonic() + minutes * 60 if minutes else None
+        self._update_sleep_button()
+        if minutes:
+            self.status_var.set(_t("sleep_set", minutes))
+            self._sleep_after = self.root.after(1000, self._sleep_tick)
+        else:
+            self.status_var.set(_t("sleep_cancelled"))
+
+    def _update_sleep_button(self):
+        if not hasattr(self, "btn_sleep") or not self.btn_sleep.winfo_exists():
+            return
+        if self._sleep_deadline is None:
+            self.btn_sleep.text = _t("sleep")
+        else:
+            remaining = max(0, self._sleep_deadline - time.monotonic())
+            self.btn_sleep.text = _t("sleep_remaining", max(1, int((remaining + 59) // 60)))
+        self.btn_sleep._draw()
+
+    def _sleep_tick(self):
+        self._sleep_after = None
+        if self._sleep_deadline is None:
+            return
+        if time.monotonic() >= self._sleep_deadline:
+            self._sleep_deadline = None
+            self._stop()
+            self._update_sleep_button()
+            self.status_var.set(_t("sleep_finished"))
+            return
+        self._update_sleep_button()
+        self._sleep_after = self.root.after(1000, self._sleep_tick)
 
     def _set_vol(self, val):
         self._vol = int(val)/100.0

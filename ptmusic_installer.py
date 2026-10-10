@@ -1,7 +1,7 @@
 """
 PTMusic Installer
 Phoni Technology 2026
-Version 26.9.3
+Version 26.9.4
 
 Standalone Python installer — no NSIS required.
 Run this file to install PTMusic.
@@ -28,7 +28,7 @@ except ImportError:
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────
 APP_NAME      = "PTMusic"
-APP_VERSION   = "26.9.3"
+APP_VERSION   = "26.9.4"
 APP_PUBLISHER = "Phoni Technology"
 APP_URL       = "https://phonitechnology.com"
 APP_EXE       = "PTMusic.exe"
@@ -43,7 +43,7 @@ REG_KEY       = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\PTMusic"
 CLASSES_KEY   = r"Software\Classes"
 
 PUBLIC_THEMES = ["Aero Light", "Aero Dark", "Mint", "Cherry", "Sand", "Ocean Teal"]
-LANGUAGES     = ["English", "Deutsch"]
+LANGUAGES     = ["English", "Deutsch", "Español"]
 
 # ── TRANSLATIONS ─────────────────────────────────────────────────────────
 STRINGS = {
@@ -54,6 +54,7 @@ STRINGS = {
         "lang_title":      "Language",
         "lang_sub":        "Select the language for PTMusic.",
         "lang_more":       "More languages will be added in future versions.",
+        "language_label":  "Installer and application language:",
         "options_title":   "Options",
         "options_sub":     "Customise your PTMusic installation.",
         "theme_label":     "Default theme:",
@@ -108,6 +109,7 @@ STRINGS = {
         "lang_title":      "Sprache",
         "lang_sub":        "Sprache für PTMusic auswählen.",
         "lang_more":       "Weitere Sprachen werden in zukünftigen Versionen hinzugefügt.",
+        "language_label":  "Sprache für Installer und Anwendung:",
         "options_title":   "Optionen",
         "options_sub":     "Passen Sie Ihre PTMusic-Installation an.",
         "theme_label":     "Standarddesign:",
@@ -154,6 +156,61 @@ STRINGS = {
         "install_fail":    "Installation fehlgeschlagen — siehe Protokoll.",
         "installing":      "Installiere…",
         "complete":        "Installation abgeschlossen!",
+    },
+    "Español": {
+        "welcome_title":   "Bienvenido al instalador de PTMusic",
+        "welcome_sub":     "Este asistente instalará PTMusic {v} en su equipo.",
+        "welcome_body":    "Pulse Siguiente para continuar.\nPTMusic se instalará en su equipo y se crearán\nlos accesos directos que haya elegido.",
+        "lang_title":      "Idioma",
+        "lang_sub":        "Seleccione el idioma de PTMusic.",
+        "lang_more":       "Se añadirán más idiomas en futuras versiones.",
+        "language_label":  "Idioma del instalador y de la aplicación:",
+        "options_title":   "Opciones",
+        "options_sub":     "Personalice la instalación de PTMusic.",
+        "theme_label":     "Tema predeterminado:",
+        "shortcuts_label": "Accesos directos:",
+        "desktop_sc":      "Crear acceso directo en el escritorio",
+        "startmenu_sc":    "Crear acceso directo en el menú Inicio",
+        "behaviour_label": "Comportamiento:",
+        "scan_label":      "Buscar música al iniciar por primera vez",
+        "notif_label":     "Activar notificaciones de pistas",
+        "dir_title":       "Carpeta de instalación",
+        "dir_sub":         "Elija dónde se instalará PTMusic.",
+        "dir_label":       "Instalar PTMusic en:",
+        "browse":          "Examinar…",
+        "free_space":      "Espacio libre en la unidad: {n} MB",
+        "req_space":       "Espacio necesario: ~60 MB",
+        "install_title":   "Instalando",
+        "install_sub":     "Espere mientras se instala PTMusic.",
+        "install_ready":   "Listo para instalar.",
+        "install_done_t":  "Instalación completada",
+        "install_done_s":  "PTMusic se ha instalado correctamente.",
+        "install_done_b":  "PTMusic {v} está listo.",
+        "publisher":       "Phoni Technology  ·  2026",
+        "launch_now":      "Iniciar PTMusic ahora",
+        "cancel_title":    "Cancelar instalación",
+        "cancel_msg":      "¿Seguro que desea cancelar la instalación?",
+        "btn_next":        "Siguiente →",
+        "btn_back":        "← Atrás",
+        "btn_cancel":      "Cancelar",
+        "btn_install":     "Instalar ✔",
+        "btn_close":       "Cerrar",
+        "btn_continue":    "Continuar de todos modos",
+        "steps":           ["Bienvenido", "Idioma", "Opciones", "Carpeta", "Instalar", "Listo"],
+        "setup_subtitle":  "Instalador — Versión {v}",
+        "err_no_exe":      "No se encontró {exe} junto al instalador.\nRuta esperada: {path}",
+        "log_created":     "  Creado: {path}",
+        "log_copied":      "  Copiado: {f}",
+        "log_cfg":         "  Configuración guardada: {path}",
+        "log_desktop":     "  Acceso directo creado en el escritorio",
+        "log_startmenu":   "  Acceso directo creado en el menú Inicio",
+        "log_registry":    "  Registrado en Agregar o quitar programas",
+        "log_reg_warn":    "  Aviso: no se pudo escribir en el registro ({e})",
+        "log_done":        "\n✔  ¡Instalación completada!",
+        "log_error":       "\n✖  Error: {e}",
+        "install_fail":    "Error de instalación — consulte el registro anterior.",
+        "installing":      "Instalando…",
+        "complete":        "¡Instalación completada!",
     },
 }
 
@@ -511,7 +568,7 @@ class Installer:
         self._header(f, t("lang_title", self._lang), t("lang_sub", self._lang))
         body = tk.Frame(f, bg=A["glass"]); body.pack(fill="both", expand=True, padx=24, pady=20)
 
-        tk.Label(body, text="Installer and application language:",
+        tk.Label(body, text=t("language_label", self._lang),
                  bg=A["glass"], fg=A["text"], font=FONT_UI).pack(anchor="w", pady=(0,10))
 
         for lang in LANGUAGES:

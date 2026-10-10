@@ -5,7 +5,7 @@ a = Analysis(
     ['PTMusic_Installer.py'],
     pathex=[],
     binaries=[],
-    datas=[('dist\\26.9.x\\26.9.3\\PTMusic.exe', '.'), ('PTMusic.png', '.'), ('PTMusic.ico', '.'), ('I:\\pt apps\\Python\\PTMusic\\examplemusic', 'examplemusic')],
+    datas=[('dist\\26.9.x\\26.9.4\\PTMusic.exe', '.'), ('PTMusic.png', '.'), ('PTMusic.ico', '.'), ('I:\\pt apps\\Python\\PTMusic\\examplemusic', 'examplemusic')],
     hiddenimports=['PIL'],
     hookspath=[],
     hooksconfig={},
